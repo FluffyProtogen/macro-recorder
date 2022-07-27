@@ -168,7 +168,7 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
 
     let mut time_since_last_action = DateTime::<Utc>::from(SystemTime::now());
 
-    for _ in 0..20000 {
+    while !stop_key_pressed() {
         let current_key_states = get_key_states();
         let current_mouse_position = get_mouse_position();
 
@@ -204,5 +204,32 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
         previous_mouse_position = current_mouse_position;
     }
 
+    remove_action_list_stop_combination(&mut action_list);
+
     action_list //
+}
+
+fn remove_action_list_stop_combination(action_list: &mut Vec<Action>) {
+    let position = action_list
+        .iter()
+        .rev()
+        .position(|action| match *action {
+            Action::Keyboard(key_code, state) => {
+                state && (key_code == VK_LCONTROL || key_code == VK_RCONTROL)
+            }
+            _ => false,
+        })
+        .unwrap();
+
+    let position = action_list.len() - position;
+
+    action_list.drain(position..action_list.len());
+}
+
+fn stop_key_pressed() -> bool {
+    unsafe { GetKeyState(VK_CONTROL) & 0x80 != 0 && GetKeyState(0x51) & 0x80 != 0 }
+}
+
+pub fn play_key_pressed() -> bool {
+    unsafe { GetKeyState(VK_CONTROL) & 0x80 != 0 && GetKeyState(0x50) & 0x80 != 0 }
 }
