@@ -6,6 +6,7 @@ use serde::*;
 use serde_json::*;
 use std::time::Duration;
 use std::time::SystemTime;
+use winapi::shared::ntstatus::STATUS_QUERY_STORAGE_ERROR;
 use winapi::{
     shared::{minwindef::*, windef::*},
     um::winuser::*,
@@ -111,7 +112,7 @@ fn update_action_list(
                     pressed: *state,
                 })))
             }
-            VK_SHIFT | VK_CONTROL | VK_MENU => (),
+            VK_CONTROL | VK_SHIFT | VK_MENU => (),
             _ => action_list.push(Action::Keyboard(*key_code as i32, *state)),
         }
     }
@@ -132,7 +133,7 @@ fn execute_keyboard_action(key_code: i32, state: bool) {
         dwExtraInfo: 0,
         wScan: 0,
         time: 0,
-        dwFlags: if state { KEYEVENTF_KEYUP } else { 0 },
+        dwFlags: if state { 0 } else { KEYEVENTF_KEYUP },
     };
 
     let mut input = INPUT {
@@ -221,7 +222,7 @@ fn remove_action_list_stop_combination(action_list: &mut Vec<Action>) {
         })
         .unwrap();
 
-    let position = action_list.len() - position;
+    let position = action_list.len() - position - 2;
 
     action_list.drain(position..action_list.len());
 }
