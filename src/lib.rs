@@ -1,5 +1,5 @@
 pub mod actions;
-
+pub mod gui;
 use actions::*;
 use chrono::{DateTime, Utc};
 use serde::*;
@@ -54,9 +54,11 @@ fn execute_mouse_action(action: &MouseActionButton) {
         u: unsafe { std::mem::transmute_copy(&mouse_input) },
     };
 
-    unsafe {
-        SetCursorPos(action.point.x, action.point.y);
-    };
+    if let Some(point) = action.point {
+        unsafe {
+            SetCursorPos(point.x, point.y);
+        };
+    }
 
     unsafe { SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32) };
 }
@@ -70,14 +72,14 @@ fn get_key_states() -> Vec<bool> {
 fn get_changed_key_states(
     previous_key_states: &[bool],
     current_key_states: &[bool],
-) -> Vec<(usize, bool)> {
+) -> Vec<(i32, bool)> {
     previous_key_states
         .iter()
         .zip(current_key_states)
         .enumerate()
         .filter_map(|(key_code, (previous_state, current_state))| {
             if *previous_state != *current_state {
-                Some((key_code, *current_state))
+                Some((key_code as i32, *current_state))
             } else {
                 None
             }
@@ -94,7 +96,7 @@ fn get_mouse_position() -> POINT {
 fn update_action_list(
     action_list: &mut Vec<Action>,
     delay: u64,
-    changed_key_states: &[(usize, bool)],
+    changed_key_states: &[(i32, bool)],
     current_mouse_position: POINT,
     previous_mouse_position: POINT,
     record_mouse_movement: bool,
@@ -104,10 +106,13 @@ fn update_action_list(
     }
 
     for (key_code, state) in changed_key_states.iter() {
-        match *key_code as i32 {
+        match *key_code {
             VK_LBUTTON | VK_RBUTTON | VK_MBUTTON => {
                 action_list.push(Action::Mouse(MouseActionKind::Button(MouseActionButton {
-                    point: current_mouse_position,
+                    point: Some(Point {
+                        x: current_mouse_position.x,
+                        y: current_mouse_position.y,
+                    }),
                     button: *key_code as i32,
                     pressed: *state,
                 })))
@@ -121,9 +126,10 @@ fn update_action_list(
         && (previous_mouse_position.x != current_mouse_position.x
             || previous_mouse_position.y != current_mouse_position.y)
     {
-        action_list.push(Action::Mouse(MouseActionKind::Moved(
-            current_mouse_position,
-        )));
+        action_list.push(Action::Mouse(MouseActionKind::Moved(Point {
+            x: current_mouse_position.x,
+            y: current_mouse_position.y,
+        })));
     }
 }
 
@@ -148,9 +154,25 @@ fn execute_keyboard_action(key_code: i32, state: bool) {
 
 pub fn play_back_actions(action_list: &[Action]) {
     for action in action_list.iter() {
+        if stop_key_pressed() {
+            return;
+        }
+
         match action {
             Action::Keyboard(key_code, state) => execute_keyboard_action(*key_code, *state),
-            Action::Delay(delay) => spin_sleep::sleep(Duration::from_micros(*delay)),
+            Action::Delay(delay) => {
+                let time_started = DateTime::<Utc>::from(SystemTime::now());
+                while (DateTime::<Utc>::from(SystemTime::now()) - time_started)
+                    .num_microseconds()
+                    .unwrap_or(0)
+                    < *delay as i64
+                {
+                    if stop_key_pressed() {
+                        return;
+                    }
+                }
+            }
+
             Action::Mouse(action_kind) => match action_kind {
                 MouseActionKind::Moved(point) => unsafe {
                     SetCursorPos(point.x, point.y);
@@ -173,7 +195,12 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
         let current_key_states = get_key_states();
         let current_mouse_position = get_mouse_position();
 
-        let changed_key_states = get_changed_key_states(&previous_key_states, &current_key_states);
+        let mut changed_key_states =
+            get_changed_key_states(&previous_key_states, &current_key_states);
+
+        changed_key_states.retain(|(key_code, _)| *key_code != VK_MENU);
+        changed_key_states.retain(|(key_code, _)| *key_code != VK_SHIFT);
+        changed_key_states.retain(|(key_code, _)| *key_code != VK_CONTROL);
 
         let delay = if changed_key_states.len() != 0
             || (record_mouse_movement
@@ -187,6 +214,7 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
                 .unwrap_or(0) as u64;
 
             time_since_last_action = current_time;
+            println!("F");
             delay
         } else {
             0
@@ -227,7 +255,7 @@ fn remove_action_list_stop_combination(action_list: &mut Vec<Action>) {
     action_list.drain(position..action_list.len());
 }
 
-fn stop_key_pressed() -> bool {
+pub fn stop_key_pressed() -> bool {
     unsafe { GetKeyState(VK_CONTROL) & 0x80 != 0 && GetKeyState(0x51) & 0x80 != 0 }
 }
 

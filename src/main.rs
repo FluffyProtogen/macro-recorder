@@ -1,17 +1,19 @@
+#![windows_subsystem = "windows"]
+
+use eframe::{epaint::Vec2, *};
 use macro_recorder::*;
 fn main() {
-    //sample();;
-
-    //let action_list = r#"[{"Delay":615877},{"Keyboard":[17,true]},{"Delay":63868},{"Keyboard":[86,true]},{"Delay":120455},{"Keyboard":[17,false]},{"Delay":274},{"Delay":15306},{"Keyboard":[86,false]}]"#;
-
-    //let action_list = serde_json::from_str::<Vec<_>>(action_list).unwrap();
-
-    let action_list = record_actions(false);
+    let action_list = record_actions(true);
 
     while !play_key_pressed() {}
-
-    //println!("{}", action_list.len());;;;;;p
     play_back_actions(&action_list);
 
-    //println!("{}", serde_json::to_string(&action_list).unwrap());ggvvv
+    let mut options = NativeOptions::default();
+    options.initial_window_size = Some(eframe::egui::Vec2::new(1440.0, 1040.0));
+    options.min_window_size = Some(Vec2 { x: 700.0, y: 700.0 });
+    run_native(
+        "Fluffy Protogens",
+        options,
+        Box::new(|cc| Box::new(gui::Recorder::new(cc, action_list))),
+    );
 }
