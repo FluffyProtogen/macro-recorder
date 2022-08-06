@@ -1,5 +1,4 @@
 use serde::*;
-use winapi::shared::windef::*;
 
 use crate::keycodes_to_string::key_code_to_string;
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -12,6 +11,7 @@ pub struct Point {
 pub enum MouseActionKind {
     Moved(Point),
     Button(MouseActionButton),
+    Wheel(i32, Option<Point>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -54,6 +54,9 @@ impl Action {
                         None => "Current Position".into(),
                     },
                 ],
+                MouseActionKind::Wheel(amount, _) => {
+                    ["Mouse".into(), "Wheel".into(), (amount / 120).to_string()]
+                }
             },
             Self::Keyboard(key_code, pressed) => [
                 "Keyboard".into(),

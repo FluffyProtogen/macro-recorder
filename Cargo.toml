@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winapi = { version = "0.3.9", features = ["winuser"] }
+winapi = { version = "0.3.9", features = ["winuser", "processthreadsapi", "sysinfoapi"] }
 chrono = "0.4.19"
 serde_json  = "1.0.82"
 serde = { version = "1.0.140", features = ["derive"]}  

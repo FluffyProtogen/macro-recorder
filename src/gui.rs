@@ -1,17 +1,12 @@
 //#![windows_subsystem = "windows"]
 
-use eframe::{
-    egui::{style::Spacing, *},
-    *,
-};
-use std::cell::RefCell;
-use std::{borrow::BorrowMut, f32::consts::E, ops::RangeInclusive};
-use std::{ops::Deref, rc::Rc};
-use winapi::{shared::ntstatus::STATUS_COPY_PROTECTION_FAILURE, um::winuser::GetAsyncKeyState};
+use eframe::{egui::*, *};
+
+use std::rc::Rc;
 
 use crate::{
     actions::Action, modify_command_window::ModifyCommandWindow, play_back_actions,
-    play_key_pressed, record_actions, right_click_dialog::ActionRightClickDialog, stop_key_pressed,
+    play_key_pressed, right_click_dialog::ActionRightClickDialog,
 };
 
 #[derive(Default)]
@@ -320,7 +315,7 @@ impl App for Recorder {
                 frame.set_visible(true);
             }
             if *action == RecordPlayAction::Record {
-                self.action_list = record_actions(true);
+                self.action_list = crate::recorder::record_actions(true);
                 frame.set_visible(true);
                 self.next_play_record_action = None;
             }

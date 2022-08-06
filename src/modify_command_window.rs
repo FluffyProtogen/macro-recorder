@@ -67,9 +67,6 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
             let data = &mut self.data.borrow_mut();
 
             let duration_area = TextEdit::singleline(&mut data.text_edit_text).desired_width(50.0);
-            //duration_area. (&self.data.borrow().text_edit_text, 0);
-
-            //
 
             ui.allocate_space(Vec2::new(0.0, 25.0));
 
@@ -80,8 +77,6 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
             });
 
             ui.allocate_space(Vec2::new(0.0, 25.0));
-
-            //ui.allocate_space(Vec2::new(25.0, 0.0));
 
             Grid::new("Mouse Window Layout").show(ui, |ui| {
                 if ui.button("Cancel").clicked() {
