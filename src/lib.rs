@@ -1,5 +1,8 @@
 pub mod actions;
 pub mod gui;
+pub mod keycodes_to_string;
+pub mod modify_command_window;
+pub mod right_click_dialog;
 use actions::*;
 use chrono::{DateTime, Utc};
 use serde::*;
@@ -65,7 +68,7 @@ fn execute_mouse_action(action: &MouseActionButton) {
 
 fn get_key_states() -> Vec<bool> {
     (0..0xFE)
-        .map(|key_code| unsafe { GetKeyState(key_code) & 0x80 != 0 })
+        .map(|key_code| unsafe { GetAsyncKeyState(key_code) < 0 })
         .collect()
 }
 
@@ -214,7 +217,6 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
                 .unwrap_or(0) as u64;
 
             time_since_last_action = current_time;
-            println!("F");
             delay
         } else {
             0
@@ -235,7 +237,7 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
 
     remove_action_list_stop_combination(&mut action_list);
 
-    action_list //
+    action_list
 }
 
 fn remove_action_list_stop_combination(action_list: &mut Vec<Action>) {
@@ -256,9 +258,9 @@ fn remove_action_list_stop_combination(action_list: &mut Vec<Action>) {
 }
 
 pub fn stop_key_pressed() -> bool {
-    unsafe { GetKeyState(VK_CONTROL) & 0x80 != 0 && GetKeyState(0x51) & 0x80 != 0 }
+    unsafe { GetAsyncKeyState(VK_CONTROL) < 0 && GetAsyncKeyState(0x51) < 0 }
 }
 
 pub fn play_key_pressed() -> bool {
-    unsafe { GetKeyState(VK_CONTROL) & 0x80 != 0 && GetKeyState(0x50) & 0x80 != 0 }
+    unsafe { GetAsyncKeyState(VK_CONTROL) < 0 && GetAsyncKeyState(0x50) < 0 }
 }

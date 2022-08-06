@@ -1,5 +1,7 @@
 use serde::*;
 use winapi::shared::windef::*;
+
+use crate::keycodes_to_string::key_code_to_string;
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct Point {
     pub x: i32,
@@ -40,7 +42,7 @@ impl Action {
                     "Mouse".into(),
                     format!(
                         "Button {} {}",
-                        action_button.button,
+                        key_code_to_string(action_button.button),
                         if action_button.pressed {
                             "Pressed"
                         } else {
@@ -55,7 +57,7 @@ impl Action {
             },
             Self::Keyboard(key_code, pressed) => [
                 "Keyboard".into(),
-                format!("Key {}", key_code),
+                format!("Key {}", key_code_to_string(*key_code)),
                 if *pressed {
                     "Pressed".into()
                 } else {

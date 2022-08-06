@@ -10,4 +10,5 @@ winapi = { version = "0.3.9", features = ["winuser"] }
 chrono = "0.4.19"
 serde_json  = "1.0.82"
 serde = { version = "1.0.140", features = ["derive"]}  
-eframe = "0.18.0"
+egui = { git = "https://github.com/emilk/egui"}
+eframe = { git = "https://github.com/emilk/egui"}
