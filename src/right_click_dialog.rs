@@ -5,11 +5,11 @@ use eframe::egui::*;
 use crate::{actions::*, gui::Recorder};
 
 pub struct ActionRightClickDialog {
-    pub position: Vec2,
+    pub position: Pos2,
 }
 
 impl Action {
-    pub fn get_right_click_dialog(&self, position: Vec2) -> ActionRightClickDialog {
+    pub fn get_right_click_dialog(&self, position: Pos2) -> ActionRightClickDialog {
         ActionRightClickDialog { position }
     }
 }
@@ -22,32 +22,27 @@ impl ActionRightClickDialog {
         ui: &mut Ui,
         screen_dimensions: Vec2,
     ) {
-        let mut window = Window::new("Actions")
-            .fixed_pos(Pos2 {
-                x: self.position.x,
-                y: self.position.y,
-            })
+        let window = Window::new("Actions")
+            .fixed_pos(self.position)
             .collapsible(false)
             .resizable(false);
 
         window.show(ctx, |ui| {
-            ui.allocate_space(Vec2::new(0.0, 5.0));
+            ui.allocate_space(vec2(0.0, 5.0));
             let button = Button::new("Edit").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
             let edit_response = button.ui(ui);
-            ui.allocate_space(Vec2::new(0.0, 5.0));
+            ui.allocate_space(vec2(0.0, 5.0));
             let button = Button::new("Delete").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
             let delete_response = button.ui(ui);
-            ui.allocate_space(Vec2::new(0.0, 5.0));
+            ui.allocate_space(vec2(0.0, 5.0));
             let button =
                 Button::new("Select All").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
             let select_all_response = button.ui(ui);
 
             if edit_response.clicked() {
                 recorder.modify_command_window = Some(Rc::new(
-                    recorder.action_list[recorder.selected_row.unwrap()].get_modify_command_window(
-                        false,
-                        Vec2::new(self.position.x, self.position.y),
-                    ),
+                    recorder.action_list[recorder.selected_row.unwrap()]
+                        .get_modify_command_window(false, self.position),
                 ));
                 recorder.right_click_dialog = None;
             }

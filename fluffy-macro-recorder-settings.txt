@@ -1,0 +1,1 @@
+{"record_mouse_movement":true,"playback_speed":1.0,"ignore_delays":false,"repeat_times":1}

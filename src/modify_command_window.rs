@@ -1,6 +1,9 @@
 use std::cell::RefCell;
 
-use crate::{actions::Action, gui::Recorder};
+use crate::{
+    actions::{self, Action},
+    gui::Recorder,
+};
 use eframe::{egui::*, *};
 pub trait ModifyCommandWindow {
     fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, screen_dimensions: Rect) {
@@ -11,7 +14,7 @@ impl Action {
     pub fn get_modify_command_window(
         &self,
         creating_command: bool,
-        position: Vec2,
+        position: Pos2,
     ) -> Box<dyn ModifyCommandWindow> {
         match self {
             Self::Mouse(_) => Box::new(MouseModifyCommandWindow {
@@ -32,53 +35,70 @@ struct DelayModifyCommandWindow {
 
 struct DelayModifyCommandWindowData {
     creating_command: bool,
-    position: Option<Vec2>,
-    text_edit_text: String,
+    position: Option<Pos2>,
+    text_edit_text: Option<String>,
 }
 
 impl DelayModifyCommandWindow {
-    fn new(creating_command: bool, position: Vec2) -> Self {
+    fn new(creating_command: bool, position: Pos2) -> Self {
         Self {
             data: RefCell::new(DelayModifyCommandWindowData {
                 creating_command,
                 position: Some(position),
-                text_edit_text: String::new(),
+                text_edit_text: None,
             }),
         }
+    }
+
+    fn setup(&self, recorder: &mut Recorder, drag_bounds: Rect) -> Window {
+        let mut window = Window::new("Delay")
+            .collapsible(false)
+            .resizable(false)
+            .drag_bounds(drag_bounds);
+
+        let mut data = self.data.borrow_mut();
+
+        if let Some(position) = &data.position {
+            window = window.current_pos(Pos2::new(position.x, position.y));
+            data.position = None;
+        }
+
+        if data.text_edit_text.is_none() {
+            if let actions::Action::Delay(delay) =
+                recorder.action_list[recorder.selected_row.unwrap()]
+            {
+                data.text_edit_text = Some(delay.to_string());
+            }
+        }
+
+        window
     }
 }
 
 impl ModifyCommandWindow for DelayModifyCommandWindow {
     fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, drag_bounds: Rect) {
-        let mut window = Window::new("Delay")
-            .collapsible(false)
-            .resizable(false)
-            .drag_bounds(drag_bounds);
-        {
-            let mut data = self.data.borrow_mut();
-
-            if let Some(position) = &data.position {
-                window = window.current_pos(Pos2::new(position.x, position.y));
-                data.position = None;
-            }
-        }
+        let window = self.setup(recorder, drag_bounds);
 
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
 
-            let duration_area = TextEdit::singleline(&mut data.text_edit_text).desired_width(50.0);
-
             ui.allocate_space(Vec2::new(0.0, 25.0));
 
-            Grid::new("Mouse Window Text Area").show(ui, |ui| {
-                ui.allocate_space(Vec2::new(25.0, 0.0));
+            ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                let duration_area = TextEdit::singleline(data.text_edit_text.as_mut().unwrap())
+                    .desired_width(150.0);
+
+                ui.add_space(35.0);
                 duration_area.ui(ui);
-                ui.allocate_space(Vec2::new(25.0, 0.0));
+                ui.add_space(15.0);
+                ui.label("milliseconds");
+                ui.add_space(35.0);
             });
 
             ui.allocate_space(Vec2::new(0.0, 25.0));
 
-            Grid::new("Mouse Window Layout").show(ui, |ui| {
+            ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                ui.add_space(35.0);
                 if ui.button("Cancel").clicked() {
                     recorder.modify_command_window = None;
                     if data.creating_command {
@@ -86,17 +106,14 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
                         recorder.selected_row = None;
                     }
                 }
-
+                ui.add_space(35.0);
                 if ui.button("Save").clicked() {
-                    if let Ok(delay) = data.text_edit_text.parse::<u64>() {
+                    if let Ok(delay) = data.text_edit_text.as_ref().unwrap().parse::<u32>() {
                         recorder.modify_command_window = None;
                         recorder.action_list[recorder.selected_row.unwrap()] = Action::Delay(delay);
                     }
                 }
-            });
-
-            //println!("{}", self.data.borrow().text_edit_text);
-            //self.data.borrow_mut().text_edit_text = duration;
+            })
         });
     }
 }
@@ -107,7 +124,7 @@ struct MouseModifyCommandWindow {
 
 struct MouseModifyCommandWindowData {
     creating_command: bool,
-    position: Option<Vec2>,
+    position: Option<Pos2>,
 }
 
 impl ModifyCommandWindow for MouseModifyCommandWindow {
@@ -120,7 +137,7 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
             let mut data = self.data.borrow_mut();
 
             if let Some(position) = &data.position {
-                window = window.current_pos(Pos2::new(position.x, position.y));
+                window = window.current_pos(*position);
                 data.position = None;
             }
         }

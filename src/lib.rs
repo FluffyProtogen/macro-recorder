@@ -4,8 +4,12 @@ pub mod keycodes_to_string;
 pub mod modify_command_window;
 pub mod recorder;
 pub mod right_click_dialog;
+pub mod settings;
+pub mod settings_window;
+pub mod warning_window;
 use actions::*;
 use chrono::{DateTime, Utc};
+use settings::Settings;
 use std::time::SystemTime;
 use winapi::um::winuser::*;
 
@@ -79,32 +83,46 @@ fn execute_keyboard_action(key_code: i32, state: bool) {
     };
 }
 
-pub fn play_back_actions(action_list: &[Action]) {
-    for action in action_list.iter() {
-        if stop_key_pressed() {
-            return;
-        }
-
-        match action {
-            Action::Keyboard(key_code, state) => execute_keyboard_action(*key_code, *state),
-            Action::Delay(delay) => {
-                let time_started = DateTime::<Utc>::from(SystemTime::now());
-                while (DateTime::<Utc>::from(SystemTime::now()) - time_started).num_milliseconds()
-                    < *delay as i64
-                {
-                    if stop_key_pressed() {
-                        return;
-                    }
-                }
+pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
+    let mut counter = 0;
+    while counter < settings.repeat_times || settings.repeat_times == 0 {
+        for action in action_list.iter() {
+            if stop_key_pressed() {
+                return;
             }
 
-            Action::Mouse(action_kind) => match action_kind {
-                MouseActionKind::Moved(point) => unsafe {
-                    SetCursorPos(point.x, point.y);
+            match action {
+                Action::Keyboard(key_code, state) => execute_keyboard_action(*key_code, *state),
+                Action::Delay(delay) => {
+                    if settings.ignore_delays {
+                        continue;
+                    }
+
+                    let delay = *delay as f64 / settings.playback_speed as f64;
+
+                    let time_started = DateTime::<Utc>::from(SystemTime::now());
+                    while (DateTime::<Utc>::from(SystemTime::now()) - time_started)
+                        .num_milliseconds()
+                        < delay as i64
+                    {
+                        if stop_key_pressed() {
+                            return;
+                        }
+                    }
+                }
+
+                Action::Mouse(action_kind) => match action_kind {
+                    MouseActionKind::Moved(point) => unsafe {
+                        SetCursorPos(point.x, point.y);
+                    },
+                    MouseActionKind::Button(action) => execute_mouse_action(action),
+                    MouseActionKind::Wheel(amount, point) => execute_scroll_wheel(*amount, *point),
                 },
-                MouseActionKind::Button(action) => execute_mouse_action(action),
-                MouseActionKind::Wheel(amount, point) => execute_scroll_wheel(*amount, *point),
-            },
+            }
+        }
+
+        if settings.repeat_times != 0 {
+            counter += 1;
         }
     }
 }

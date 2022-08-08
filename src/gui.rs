@@ -5,17 +5,24 @@ use eframe::{egui::*, *};
 use std::rc::Rc;
 
 use crate::{
-    actions::Action, modify_command_window::ModifyCommandWindow, play_back_actions,
-    play_key_pressed, right_click_dialog::ActionRightClickDialog,
+    actions::Action,
+    modify_command_window::ModifyCommandWindow,
+    play_back_actions, play_key_pressed,
+    right_click_dialog::ActionRightClickDialog,
+    settings::{self, Settings},
+    settings_window::SettingsWindow,
+    warning_window::{DefaultErrorWindow, SettingsNotFoundErrorWindow, WarningWindow},
 };
 
-#[derive(Default)]
 pub struct Recorder {
     pub selected_row: Option<usize>,
     pub action_list: Vec<Action>,
     pub right_click_dialog: Option<Rc<ActionRightClickDialog>>,
     pub modify_command_window: Option<Rc<Box<dyn ModifyCommandWindow>>>,
     next_play_record_action: Option<RecordPlayAction>,
+    pub settings_window: Option<Rc<SettingsWindow>>,
+    pub settings: Settings,
+    pub warning_window: Option<Rc<Box<dyn WarningWindow>>>,
 }
 
 const TOP_PANEL_HEIGHT: f32 = 65.0;
@@ -32,6 +39,7 @@ impl Recorder {
     pub fn new(cc: &CreationContext<'_>, action_list: Vec<Action>) -> Self {
         use crate::gui::FontFamily::*;
         use crate::gui::TextStyle::*;
+        use crate::settings::*;
         cc.egui_ctx.set_visuals(Visuals::light());
 
         let mut style = (*cc.egui_ctx.style()).clone();
@@ -53,9 +61,39 @@ impl Recorder {
         ]
         .into();
 
-        style.spacing.item_spacing = Vec2::new(0.0, 0.0);
+        style.spacing.item_spacing = vec2(0.0, 0.0);
 
         cc.egui_ctx.set_style(style);
+
+        let settings = settings::load_settings();
+
+        let warning_window = if settings.is_err() {
+            let create_settings_file_result = settings::create_settings_file();
+
+            match create_settings_file_result {
+                Ok(()) => Some(Rc::new(DefaultErrorWindow::new(
+                    "Settings Not Found".into(),
+                    vec![
+                        "Settings file not found.".into(),
+                        format!(
+                            "Settings file created at {}\\{}",
+                            std::env::current_dir().unwrap().to_str().unwrap(),
+                            settings::SETTINGS_FILE_NAME
+                        ),
+                    ],
+                ))),
+                Err(error) => Some(Rc::new(DefaultErrorWindow::new(
+                    "Settings Error".into(),
+                    vec![
+                        "Settings file not found.".into(),
+                        "Error attempting to create settings file:".into(),
+                        error.to_string(),
+                    ],
+                ))),
+            }
+        } else {
+            None
+        };
 
         Self {
             selected_row: None,
@@ -63,6 +101,9 @@ impl Recorder {
             right_click_dialog: None,
             modify_command_window: None,
             next_play_record_action: None,
+            settings_window: None,
+            settings: settings.unwrap_or(Default::default()),
+            warning_window,
         }
     }
 
@@ -106,9 +147,9 @@ impl Recorder {
             .current_pos(Pos2 { x: 0.0, y: 0.0 })
             .order(Order::Foreground)
             .show(ctx, |ui| {
-                ui.set_enabled(self.modify_command_window.is_none());
+                ui.set_enabled(!self.are_any_modals_open());
 
-                ui.allocate_space(Vec2::new(0.0, 25.0));
+                ui.allocate_space(vec2(0.0, 25.0));
 
                 let style = ui
                     .style_mut()
@@ -118,24 +159,39 @@ impl Recorder {
 
                 style.size = 35.0;
 
-                Grid::new("Top Panel Layout").show(ui, |ui| {
-                    ui.allocate_space(Vec2::new(65.0, 0.0));
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.allocate_space(vec2(65.0, 0.0));
                     let record_button = Button::new("Record");
                     let record_response = record_button.ui(ui);
 
-                    ui.allocate_space(Vec2::new(5.0, 0.0));
+                    ui.allocate_space(vec2(50.0, 0.0));
 
                     let play_button = Button::new("Play");
                     let play_response = play_button.ui(ui);
 
+                    ui.allocate_space(vec2(50.0, 0.0));
+
+                    let settings_button = Button::new("Settings");
+                    let settings_response = settings_button.ui(ui);
+
                     if play_response.clicked() {
+                        self.right_click_dialog = None;
                         self.next_play_record_action = Some(RecordPlayAction::Play);
                         frame.set_visible(false);
+                        frame.set_fullscreen(false);
                     }
 
                     if record_response.clicked() {
+                        self.right_click_dialog = None;
                         self.next_play_record_action = Some(RecordPlayAction::Record);
                         frame.set_visible(false);
+                        frame.set_fullscreen(false);
+                    }
+
+                    if settings_response.clicked() {
+                        self.right_click_dialog = None;
+                        self.settings_window =
+                            Some(Rc::new(SettingsWindow::new(self.settings.clone())));
                     }
                 });
             });
@@ -253,22 +309,14 @@ impl Recorder {
                 self.selected_row = Some(row);
 
                 self.right_click_dialog = Some(Rc::new(
-                    self.action_list[row].get_right_click_dialog(Vec2::new(
-                        response.hover_pos().unwrap().x,
-                        response.hover_pos().unwrap().y,
-                    )),
+                    self.action_list[row].get_right_click_dialog(response.hover_pos().unwrap()),
                 ));
             }
 
             if response.double_clicked() {
                 self.modify_command_window = Some(Rc::new(
-                    self.action_list[self.selected_row.unwrap()].get_modify_command_window(
-                        false,
-                        Vec2::new(
-                            response.hover_pos().unwrap().x,
-                            response.hover_pos().unwrap().y,
-                        ),
-                    ),
+                    self.action_list[self.selected_row.unwrap()]
+                        .get_modify_command_window(false, response.hover_pos().unwrap()),
                 ));
             }
 
@@ -305,17 +353,24 @@ impl Recorder {
             self.selected_row = None;
         }
     }
+
+    fn are_any_modals_open(&self) -> bool {
+        self.modify_command_window.is_some()
+            || self.settings_window.is_some()
+            || self.warning_window.is_some()
+    }
 }
 
 impl App for Recorder {
     fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         if let Some(action) = &self.next_play_record_action {
             if *action == RecordPlayAction::Play {
-                play_back_actions(&self.action_list);
+                play_back_actions(&self.action_list, &self.settings);
                 frame.set_visible(true);
             }
             if *action == RecordPlayAction::Record {
-                self.action_list = crate::recorder::record_actions(true);
+                self.action_list =
+                    crate::recorder::record_actions(self.settings.record_mouse_movement);
                 frame.set_visible(true);
                 self.next_play_record_action = None;
             }
@@ -324,6 +379,7 @@ impl App for Recorder {
 
         if play_key_pressed() {
             frame.set_visible(false);
+            frame.set_fullscreen(false);
             self.next_play_record_action = Some(RecordPlayAction::Play);
         }
 
@@ -340,14 +396,14 @@ impl App for Recorder {
             );
 
             egui::Frame::default().show(ui, |ui| {
-                ui.set_enabled(self.modify_command_window.is_none());
+                ui.set_enabled(!self.are_any_modals_open());
 
                 let row_height = ui.spacing().interact_size.y;
 
                 let total_rows = self.action_list.len();
                 ScrollArea::vertical()
                     .enable_scrolling(
-                        self.right_click_dialog.is_none() && self.modify_command_window.is_none(),
+                        self.right_click_dialog.is_none() && !self.are_any_modals_open(),
                     )
                     .show_rows(ui, row_height, total_rows, |ui, row_range| {
                         self.add_buttons(ctx, ui, row_range, screen_dimensions);
@@ -365,6 +421,30 @@ impl App for Recorder {
 
                 if let Some(window) = &self.modify_command_window.clone() {
                     window.update(
+                        self,
+                        ctx,
+                        ui,
+                        Rect::from_x_y_ranges(
+                            SIDE_PANEL_WIDTH..=frame.info().window_info.size.x,
+                            TOP_PANEL_HEIGHT..=frame.info().window_info.size.y,
+                        ),
+                    );
+                }
+
+                if let Some(settings_window) = &self.settings_window.clone() {
+                    settings_window.update(
+                        self,
+                        ctx,
+                        ui,
+                        Rect::from_x_y_ranges(
+                            SIDE_PANEL_WIDTH..=frame.info().window_info.size.x,
+                            TOP_PANEL_HEIGHT..=frame.info().window_info.size.y,
+                        ),
+                    );
+                }
+
+                if let Some(warning_window) = &self.warning_window.clone() {
+                    warning_window.update(
                         self,
                         ctx,
                         ui,

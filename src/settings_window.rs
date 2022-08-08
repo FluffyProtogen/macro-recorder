@@ -1,0 +1,118 @@
+use std::{cell::RefCell, rc::Rc};
+
+use egui::*;
+
+use crate::{
+    gui::Recorder,
+    recorder,
+    settings::{self, Settings},
+    warning_window::DefaultErrorWindow,
+};
+
+pub struct SettingsWindow {
+    data: RefCell<SettingsWindowData>,
+}
+
+impl SettingsWindow {
+    pub fn new(settings: Settings) -> Self {
+        let replay_textedit_text = settings.repeat_times.to_string();
+
+        Self {
+            data: RefCell::new(SettingsWindowData {
+                temp_settings: settings,
+                replay_textedit_text,
+            }),
+        }
+    }
+}
+
+struct SettingsWindowData {
+    temp_settings: Settings,
+    replay_textedit_text: String,
+}
+
+impl SettingsWindow {
+    fn setup(&self, recorder: &mut Recorder, drag_bounds: Rect) -> Window {
+        let mut window = Window::new("Settings")
+            .collapsible(false)
+            .resizable(false)
+            .drag_bounds(drag_bounds)
+            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0));
+
+        let mut data = self.data.borrow_mut();
+
+        window
+    }
+
+    pub fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, drag_bounds: Rect) {
+        let window = self.setup(recorder, drag_bounds);
+
+        window.show(ctx, |ui| {
+            let mut data = self.data.borrow_mut();
+
+            ui.allocate_space(vec2(0.0, 25.0));
+
+            ui.checkbox(
+                &mut data.temp_settings.record_mouse_movement,
+                "Record mouse movement",
+            );
+
+            ui.allocate_space(vec2(0.0, 25.0));
+
+            ui.label(format!(
+                "Playback speed: {}x",
+                data.temp_settings.playback_speed
+            ));
+
+            Slider::new(&mut data.temp_settings.playback_speed, 0.5..=5.0).ui(ui);
+
+            ui.allocate_space(vec2(0.0, 25.0));
+
+            ui.checkbox(
+                &mut data.temp_settings.ignore_delays,
+                "Ignore delays completely",
+            );
+
+            ui.allocate_space(vec2(0.0, 25.0));
+
+            ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                let repeat_area =
+                    TextEdit::singleline(&mut data.replay_textedit_text).desired_width(75.0);
+
+                repeat_area.ui(ui);
+                ui.add_space(25.0);
+                ui.label("Number of times to repeat. Put 0 for infinite repeats.");
+            });
+
+            ui.allocate_space(vec2(0.0, 25.0));
+
+            ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                ui.add_space(35.0);
+                if ui.button("Cancel").clicked() {
+                    recorder.settings_window = None;
+                }
+                ui.add_space(35.0);
+                if ui.button("Save").clicked() {
+                    if let Ok(repeats) = data.replay_textedit_text.parse::<u32>() {
+                        data.temp_settings.repeat_times = repeats;
+                        recorder.settings = data.temp_settings.clone();
+                        recorder.settings_window = None;
+
+                        let save_result = settings::save_settings_file(&data.temp_settings);
+
+                        if let Err(error) = save_result {
+                            recorder.warning_window = Some(Rc::new(DefaultErrorWindow::new(
+                                "Settings Error".into(),
+                                vec![
+                                    "Error saving settings to file:".into(),
+                                    error.to_string(),
+                                    "The macro recorder will still function, but the settings will not be saved at next startup.".into()
+                                ],
+                            )));
+                        }
+                    }
+                }
+            });
+        });
+    }
+}

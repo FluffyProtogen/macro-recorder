@@ -23,7 +23,7 @@ pub struct MouseActionButton {
 
 #[derive(Serialize, Deserialize)]
 pub enum Action {
-    Delay(u64),
+    Delay(u32),
     Mouse(MouseActionKind),
     Keyboard(i32, bool),
 }

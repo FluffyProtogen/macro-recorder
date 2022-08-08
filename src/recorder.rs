@@ -22,8 +22,16 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
         PostThreadMessageA(keyboard_thread, WM_QUIT, 0, 0);
         PostThreadMessageA(mouse_thread, WM_QUIT, 0, 0);
 
+        if KEYBOARD_ACTIONS.len() < 2 {
+            return vec![];
+        }
+
         // Remove stop combination
         KEYBOARD_ACTIONS.drain((KEYBOARD_ACTIONS.len() - 2)..KEYBOARD_ACTIONS.len());
+
+        if !record_mouse_movement {
+            MOUSE_ACTIONS.retain(|(_, w_param)| *w_param != WM_MOUSEMOVE as usize);
+        }
 
         if MOUSE_ACTIONS.len() == 0 && KEYBOARD_ACTIONS.len() == 0 {
             return vec![];
@@ -48,7 +56,6 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
             &mut MOUSE_ACTIONS,
             initial_start_time,
             start_time,
-            record_mouse_movement,
         )
     }
 }
@@ -58,13 +65,8 @@ fn combine_into_action_list(
     mouse_actions: &mut Vec<(MSLLHOOKSTRUCT, WPARAM)>,
     initial_start_time: u32,
     start_time: u32,
-    record_mouse_movement: bool,
 ) -> Vec<Action> {
-    if !record_mouse_movement {
-        mouse_actions.retain(|(_, w_param)| *w_param != WM_MOUSEMOVE as usize);
-    }
-
-    let mut current_time = start_time as u64;
+    let mut current_time = start_time;
 
     let mut keyboard_index = 0;
     let mut mouse_index = 0;
@@ -72,7 +74,7 @@ fn combine_into_action_list(
     let mut actions = vec![];
 
     if (start_time - initial_start_time) > 0 {
-        actions.push(Delay((start_time - initial_start_time) as u64));
+        actions.push(Delay((start_time - initial_start_time)));
     }
 
     loop {
@@ -128,20 +130,18 @@ fn combine_into_action_list(
                 }
             };
 
-            if mouse_actions[mouse_index].0.time as u64 - current_time != 0 {
-                actions.push(Delay(
-                    mouse_actions[mouse_index].0.time as u64 - current_time,
-                ));
+            if mouse_actions[mouse_index].0.time - current_time != 0 {
+                actions.push(Delay(mouse_actions[mouse_index].0.time - current_time));
             }
 
-            current_time = mouse_actions[mouse_index].0.time as u64;
+            current_time = mouse_actions[mouse_index].0.time;
 
             actions.push(Mouse(action_kind));
             mouse_index += 1;
         } else {
-            if keyboard_actions[keyboard_index].0.time as u64 - current_time != 0 {
+            if keyboard_actions[keyboard_index].0.time - current_time != 0 {
                 actions.push(Delay(
-                    keyboard_actions[keyboard_index].0.time as u64 - current_time,
+                    keyboard_actions[keyboard_index].0.time - current_time,
                 ));
             }
 
@@ -156,7 +156,7 @@ fn combine_into_action_list(
                 pressed,
             ));
 
-            current_time = keyboard_actions[keyboard_index].0.time as u64;
+            current_time = keyboard_actions[keyboard_index].0.time;
 
             keyboard_index += 1;
         }
