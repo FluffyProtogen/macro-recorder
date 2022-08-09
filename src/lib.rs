@@ -10,7 +10,13 @@ pub mod warning_window;
 use actions::*;
 use chrono::{DateTime, Utc};
 use settings::Settings;
-use std::time::SystemTime;
+use std::{
+    error::Error,
+    fs::{read_to_string, File},
+    io::Write,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 use winapi::um::winuser::*;
 
 fn execute_mouse_action(action: &MouseActionButton) {
@@ -157,4 +163,20 @@ pub fn stop_key_pressed() -> bool {
 
 pub fn play_key_pressed() -> bool {
     unsafe { GetAsyncKeyState(VK_CONTROL) < 0 && GetAsyncKeyState(0x50) < 0 }
+}
+
+pub fn load_from_file(path: &Path) -> Result<Vec<Action>, Box<dyn Error>> {
+    let actions = read_to_string(path)?;
+    let actions = serde_json::from_str(&actions)?;
+    Ok(actions)
+}
+
+pub fn save_macro(path: &Path, action_list: &[Action]) -> Result<(), Box<dyn Error>> {
+    let mut file = File::create(path)?;
+
+    let action_list = serde_json::to_string(action_list).unwrap();
+
+    file.write_all(action_list.as_bytes())?;
+
+    Ok(())
 }

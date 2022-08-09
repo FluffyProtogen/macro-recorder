@@ -2,16 +2,18 @@
 
 use eframe::{egui::*, *};
 
-use std::rc::Rc;
+use std::{path::*, rc::Rc};
 
 use crate::{
     actions::Action,
+    load_from_file,
     modify_command_window::ModifyCommandWindow,
     play_back_actions, play_key_pressed,
     right_click_dialog::ActionRightClickDialog,
+    save_macro,
     settings::{self, Settings},
     settings_window::SettingsWindow,
-    warning_window::{DefaultErrorWindow, SettingsNotFoundErrorWindow, WarningWindow},
+    warning_window::{DefaultErrorWindow, RecordConfirmationWindow, WarningWindow},
 };
 
 pub struct Recorder {
@@ -19,10 +21,11 @@ pub struct Recorder {
     pub action_list: Vec<Action>,
     pub right_click_dialog: Option<Rc<ActionRightClickDialog>>,
     pub modify_command_window: Option<Rc<Box<dyn ModifyCommandWindow>>>,
-    next_play_record_action: Option<RecordPlayAction>,
+    pub next_play_record_action: Option<RecordPlayAction>,
     pub settings_window: Option<Rc<SettingsWindow>>,
     pub settings: Settings,
     pub warning_window: Option<Rc<Box<dyn WarningWindow>>>,
+    pub current_macro_path: Option<PathBuf>,
 }
 
 const TOP_PANEL_HEIGHT: f32 = 65.0;
@@ -30,7 +33,7 @@ const TOP_PANEL_HEIGHT: f32 = 65.0;
 const SIDE_PANEL_WIDTH: f32 = 65.0;
 
 #[derive(PartialEq, Eq)]
-enum RecordPlayAction {
+pub enum RecordPlayAction {
     Play,
     Record,
 }
@@ -104,6 +107,7 @@ impl Recorder {
             settings_window: None,
             settings: settings.unwrap_or(Default::default()),
             warning_window,
+            current_macro_path: None,
         }
     }
 
@@ -157,41 +161,97 @@ impl Recorder {
                     .get_mut(&crate::gui::TextStyle::Button)
                     .unwrap();
 
-                style.size = 35.0;
+                style.size = 30.0;
 
                 ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                     ui.allocate_space(vec2(65.0, 0.0));
-                    let record_button = Button::new("Record");
-                    let record_response = record_button.ui(ui);
 
-                    ui.allocate_space(vec2(50.0, 0.0));
+                    if self.action_list.len() > 0 {
+                        if ui.button("Play").clicked() {
+                            self.right_click_dialog = None;
+                            self.next_play_record_action = Some(RecordPlayAction::Play);
+                            frame.set_visible(false);
+                            frame.set_fullscreen(false);
+                        }
 
-                    let play_button = Button::new("Play");
-                    let play_response = play_button.ui(ui);
-
-                    ui.allocate_space(vec2(50.0, 0.0));
-
-                    let settings_button = Button::new("Settings");
-                    let settings_response = settings_button.ui(ui);
-
-                    if play_response.clicked() {
-                        self.right_click_dialog = None;
-                        self.next_play_record_action = Some(RecordPlayAction::Play);
-                        frame.set_visible(false);
-                        frame.set_fullscreen(false);
+                        ui.allocate_space(vec2(30.0, 0.0));
                     }
 
-                    if record_response.clicked() {
+                    if ui.button("Record").clicked() {
                         self.right_click_dialog = None;
-                        self.next_play_record_action = Some(RecordPlayAction::Record);
-                        frame.set_visible(false);
-                        frame.set_fullscreen(false);
+
+                        if self.action_list.len() > 0 {
+                            self.warning_window = Some(Rc::new(RecordConfirmationWindow::new()));
+                        } else {
+                            self.next_play_record_action = Some(RecordPlayAction::Record);
+                            frame.set_visible(false);
+                            frame.set_fullscreen(false);
+                        }
                     }
 
-                    if settings_response.clicked() {
+                    ui.allocate_space(vec2(30.0, 0.0));
+
+                    if ui.button("Settings").clicked() {
                         self.right_click_dialog = None;
                         self.settings_window =
                             Some(Rc::new(SettingsWindow::new(self.settings.clone())));
+                    }
+
+                    ui.allocate_space(vec2(30.0, 0.0));
+
+                    if ui.button("Open").clicked() {
+                        self.right_click_dialog = None;
+                        let path = rfd::FileDialog::new()
+                            .add_filter("fluffy macro", &["floof"])
+                            .add_filter("All files", &["*"])
+                            .pick_file();
+                        if let Some(path) = path {
+                            let load_result = load_from_file(&path);
+
+                            match load_result {
+                                Ok(result) => {
+                                    self.current_macro_path = Some(path);
+                                    self.action_list = result;
+                                    self.update_title(frame);
+                                }
+                                Err(error) => {
+                                    self.warning_window = Some(Rc::new(DefaultErrorWindow::new(
+                                        "Load Error".into(),
+                                        vec!["Error loading macro:".into(), error.to_string()],
+                                    )))
+                                }
+                            }
+                        }
+                    }
+
+                    if self.action_list.len() > 0 {
+                        ui.allocate_space(vec2(30.0, 0.0));
+
+                        if ui.button("Save").clicked() {
+                            self.right_click_dialog = None;
+                            if let Some(path) = &self.current_macro_path.clone() {
+                                self.try_save(path.clone(), frame);
+                            } else {
+                                if let Some(path) = rfd::FileDialog::new()
+                                    .add_filter("fluffy macro", &["floof"])
+                                    .save_file()
+                                {
+                                    self.try_save(path, frame);
+                                }
+                            }
+                        }
+
+                        ui.allocate_space(vec2(30.0, 0.0));
+
+                        if ui.button("Save As").clicked() {
+                            self.right_click_dialog = None;
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("fluffy macro", &["floof"])
+                                .save_file()
+                            {
+                                self.try_save(path, frame);
+                            }
+                        }
                     }
                 });
             });
@@ -335,8 +395,8 @@ impl Recorder {
         }
     }
 
-    fn handle_main_menu_key_presses(&mut self, ui: &mut Ui) {
-        if self.modify_command_window.is_some() {
+    fn handle_main_menu_key_presses(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
+        if self.are_any_modals_open() {
             return;
         }
 
@@ -352,12 +412,47 @@ impl Recorder {
             self.right_click_dialog = None;
             self.selected_row = None;
         }
+
+        if ui.input().modifiers.ctrl && ui.input().key_pressed(Key::S) && self.action_list.len() > 0
+        {
+            if let Some(path) = &self.current_macro_path.clone() {
+                self.try_save(path.clone(), frame);
+            } else {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("fluffy macro", &["floof"])
+                    .save_file()
+                {
+                    self.try_save(path, frame);
+                }
+            }
+        }
     }
 
     fn are_any_modals_open(&self) -> bool {
         self.modify_command_window.is_some()
             || self.settings_window.is_some()
             || self.warning_window.is_some()
+    }
+
+    fn try_save(&mut self, path: PathBuf, frame: &mut eframe::Frame) {
+        let save_result = save_macro(&path, &self.action_list);
+
+        if let Err(error) = save_result {
+            self.warning_window = Some(Rc::new(DefaultErrorWindow::new(
+                "Save Error".into(),
+                vec!["Error saving macro:".into(), error.to_string()],
+            )))
+        } else {
+            self.current_macro_path = Some(path);
+            self.update_title(frame);
+        }
+    }
+
+    fn update_title(&self, frame: &mut eframe::Frame) {
+        frame.set_window_title(&format!(
+            "Fluffy Macro Recorder - {}",
+            self.current_macro_path.as_ref().unwrap().to_str().unwrap()
+        ));
     }
 }
 
@@ -377,7 +472,7 @@ impl App for Recorder {
             self.next_play_record_action = None;
         }
 
-        if play_key_pressed() {
+        if play_key_pressed() && self.action_list.len() > 0 {
             frame.set_visible(false);
             frame.set_fullscreen(false);
             self.next_play_record_action = Some(RecordPlayAction::Play);
@@ -413,7 +508,7 @@ impl App for Recorder {
                 Self::side_panel(ctx, screen_dimensions);
                 Self::dividing_lines(ui, screen_dimensions);
 
-                self.handle_main_menu_key_presses(ui);
+                self.handle_main_menu_key_presses(ui, frame);
 
                 if let Some(dialog) = &self.right_click_dialog.clone() {
                     dialog.update(self, ctx, ui, screen_dimensions);
@@ -452,6 +547,7 @@ impl App for Recorder {
                             SIDE_PANEL_WIDTH..=frame.info().window_info.size.x,
                             TOP_PANEL_HEIGHT..=frame.info().window_info.size.y,
                         ),
+                        frame,
                     );
                 }
             });

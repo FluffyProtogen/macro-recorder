@@ -39,15 +39,9 @@ pub fn create_settings_file() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn save_settings_file(settings: &Settings) -> Result<(), Box<dyn Error>> {
-    let mut file = File::open(SETTINGS_FILE_NAME);
+    let mut file = File::create(SETTINGS_FILE_NAME)?;
 
-    if file.is_err() {
-        file = File::create(SETTINGS_FILE_NAME);
-    }
-
-    let mut file = file?;
-
-    let settings = serde_json::to_string(&Settings::default()).unwrap();
+    let settings = serde_json::to_string(settings).unwrap();
 
     file.write_all(settings.as_bytes())?;
 
