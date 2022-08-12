@@ -20,54 +20,105 @@ use std::{
 use winapi::um::winuser::*;
 
 fn execute_mouse_action(action: &MouseActionButton) {
-    let flag = match action.button {
-        VK_LBUTTON => {
-            if action.pressed {
-                MOUSEEVENTF_LEFTDOWN
-            } else {
-                MOUSEEVENTF_LEFTUP
+    if action.state == MouseActionButtonState::Pressed
+        || action.state == MouseActionButtonState::Released
+    {
+        let flag = match action.button {
+            VK_LBUTTON => {
+                if action.state == MouseActionButtonState::Pressed {
+                    MOUSEEVENTF_LEFTDOWN
+                } else {
+                    MOUSEEVENTF_LEFTUP
+                }
             }
-        }
-        VK_RBUTTON => {
-            if action.pressed {
-                MOUSEEVENTF_RIGHTDOWN
-            } else {
-                MOUSEEVENTF_RIGHTUP
+            VK_RBUTTON => {
+                if action.state == MouseActionButtonState::Pressed {
+                    MOUSEEVENTF_RIGHTDOWN
+                } else {
+                    MOUSEEVENTF_RIGHTUP
+                }
             }
-        }
-        VK_MBUTTON => {
-            if action.pressed {
-                MOUSEEVENTF_MIDDLEDOWN
-            } else {
-                MOUSEEVENTF_MIDDLEUP
+            VK_MBUTTON => {
+                if action.state == MouseActionButtonState::Pressed {
+                    MOUSEEVENTF_MIDDLEDOWN
+                } else {
+                    MOUSEEVENTF_MIDDLEUP
+                }
             }
-        }
-        _ => panic!(
+            _ => panic!(
             "Somehow got a mouse button other than left / middle / right in execute mouse action"
         ),
-    };
-
-    let mouse_input = MOUSEINPUT {
-        dx: 0,
-        dy: 0,
-        mouseData: 0,
-        dwFlags: flag,
-        dwExtraInfo: 0,
-        time: 0,
-    };
-
-    let mut input = INPUT {
-        type_: INPUT_MOUSE,
-        u: unsafe { std::mem::transmute_copy(&mouse_input) },
-    };
-
-    if let Some(point) = action.point {
-        unsafe {
-            SetCursorPos(point.x, point.y);
         };
-    }
 
-    unsafe { SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32) };
+        let mouse_input = MOUSEINPUT {
+            dx: 0,
+            dy: 0,
+            mouseData: 0,
+            dwFlags: flag,
+            dwExtraInfo: 0,
+            time: 0,
+        };
+
+        let mut input = INPUT {
+            type_: INPUT_MOUSE,
+            u: unsafe { std::mem::transmute_copy(&mouse_input) },
+        };
+
+        if let Some(point) = action.point {
+            unsafe {
+                SetCursorPos(point.x, point.y);
+            };
+        }
+
+        unsafe { SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32) };
+    } else {
+        let mut inputs = [
+            INPUT {
+                type_: INPUT_MOUSE,
+                u: unsafe {
+                    std::mem::transmute_copy(&MOUSEINPUT {
+                dx: 0,
+                dy: 0,
+                mouseData: 0,
+                dwFlags: match action.button {
+                    VK_LBUTTON => MOUSEEVENTF_LEFTDOWN,
+                    VK_RBUTTON => MOUSEEVENTF_RIGHTDOWN,
+                    VK_MBUTTON => MOUSEEVENTF_MIDDLEDOWN,
+                    _ => panic!("Somehow got a mouse button other than left / middle / right in execute mouse action"),
+            },
+                dwExtraInfo: 0,
+                time: 0,
+            })
+                },
+            },
+            INPUT {
+                type_: INPUT_MOUSE,
+                u: unsafe {
+                    std::mem::transmute_copy(&MOUSEINPUT {
+                dx: 0,
+                dy: 0,
+                mouseData: 0,
+                dwFlags: match action.button {
+                    VK_LBUTTON => MOUSEEVENTF_LEFTUP,
+                    VK_RBUTTON => MOUSEEVENTF_RIGHTUP,
+                    VK_MBUTTON => MOUSEEVENTF_MIDDLEUP,
+                    _ => panic!("Somehow got a mouse button other than left / middle / right in execute mouse action"),
+            },
+                dwExtraInfo: 0,
+                time: 0,
+            })
+                },
+            },
+        ];
+
+        if let Some(point) = action.point {
+            unsafe {
+                SetCursorPos(point.x, point.y);
+            };
+        }
+
+        unsafe { SendInput(2, inputs.as_mut_ptr(), std::mem::size_of::<INPUT>() as i32) };
+    }
 }
 
 fn execute_keyboard_action(key_code: i32, state: bool) {

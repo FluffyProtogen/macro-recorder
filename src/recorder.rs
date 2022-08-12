@@ -5,9 +5,9 @@ use winapi::{
     um::{processthreadsapi::GetCurrentThreadId, sysinfoapi::GetTickCount, winuser::*},
 };
 
-use crate::actions::Action::*;
 use crate::actions::MouseActionKind::*;
 use crate::actions::{Action, MouseActionButton, Point};
+use crate::actions::{Action::*, MouseActionButtonState};
 pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
     unsafe {
         KEYBOARD_ACTIONS.clear();
@@ -123,7 +123,11 @@ fn combine_into_action_list(
                             y: mouse_actions[mouse_index].0.pt.y,
                         }),
                         button,
-                        pressed,
+                        state: if pressed {
+                            MouseActionButtonState::Pressed
+                        } else {
+                            MouseActionButtonState::Released
+                        },
                     };
 
                     Button(action)

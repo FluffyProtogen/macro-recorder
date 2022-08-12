@@ -18,7 +18,14 @@ pub enum MouseActionKind {
 pub struct MouseActionButton {
     pub point: Option<Point>,
     pub button: i32,
-    pub pressed: bool,
+    pub state: MouseActionButtonState,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+pub enum MouseActionButtonState {
+    Pressed,
+    Released,
+    Clicked,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -43,10 +50,10 @@ impl Action {
                     format!(
                         "Button {} {}",
                         key_code_to_string(action_button.button),
-                        if action_button.pressed {
-                            "Pressed"
-                        } else {
-                            "Released"
+                        match action_button.state {
+                            MouseActionButtonState::Pressed => "Pressed",
+                            MouseActionButtonState::Released => "Released",
+                            MouseActionButtonState::Clicked => "Clicked",
                         }
                     ),
                     match action_button.point {

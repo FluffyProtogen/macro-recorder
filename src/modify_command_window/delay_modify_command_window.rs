@@ -5,31 +5,10 @@ use crate::{
     gui::Recorder,
 };
 use eframe::{egui::*, *};
-pub trait ModifyCommandWindow {
-    fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, screen_dimensions: Rect) {
-    }
-}
 
-impl Action {
-    pub fn get_modify_command_window(
-        &self,
-        creating_command: bool,
-        position: Pos2,
-    ) -> Box<dyn ModifyCommandWindow> {
-        match self {
-            Self::Mouse(_) => Box::new(MouseModifyCommandWindow {
-                data: RefCell::new(MouseModifyCommandWindowData {
-                    creating_command,
-                    position: Some(position),
-                }),
-            }),
-            Self::Delay(_) => Box::new(DelayModifyCommandWindow::new(creating_command, position)),
-            Self::Keyboard(_, _) => panic!(),
-        }
-    }
-}
+use super::ModifyCommandWindow;
 
-struct DelayModifyCommandWindow {
+pub struct DelayModifyCommandWindow {
     data: RefCell<DelayModifyCommandWindowData>,
 }
 
@@ -40,7 +19,7 @@ struct DelayModifyCommandWindowData {
 }
 
 impl DelayModifyCommandWindow {
-    fn new(creating_command: bool, position: Pos2) -> Self {
+    pub fn new(creating_command: bool, position: Pos2) -> Self {
         Self {
             data: RefCell::new(DelayModifyCommandWindowData {
                 creating_command,
@@ -113,35 +92,7 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
                         recorder.action_list[recorder.selected_row.unwrap()] = Action::Delay(delay);
                     }
                 }
-            })
+            });
         });
-    }
-}
-
-struct MouseModifyCommandWindow {
-    data: RefCell<MouseModifyCommandWindowData>,
-}
-
-struct MouseModifyCommandWindowData {
-    creating_command: bool,
-    position: Option<Pos2>,
-}
-
-impl ModifyCommandWindow for MouseModifyCommandWindow {
-    fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, drag_bounds: Rect) {
-        let mut window = Window::new("Mouse Command")
-            .collapsible(false)
-            .resizable(false)
-            .drag_bounds(drag_bounds);
-        {
-            let mut data = self.data.borrow_mut();
-
-            if let Some(position) = &data.position {
-                window = window.current_pos(*position);
-                data.position = None;
-            }
-        }
-
-        window.show(ctx, |ui| {});
     }
 }

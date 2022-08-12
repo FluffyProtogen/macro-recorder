@@ -13,3 +13,5 @@ serde = { version = "1.0.140", features = ["derive"]}
 egui = { git = "https://github.com/emilk/egui"}
 eframe = { git = "https://github.com/emilk/egui"}
 rfd = "0.10.0"
+strum = "0.24.1"
+strum_macros = "0.24.3"
