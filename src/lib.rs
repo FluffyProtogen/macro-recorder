@@ -121,23 +121,60 @@ fn execute_mouse_action(action: &MouseActionButton) {
     }
 }
 
-fn execute_keyboard_action(key_code: i32, state: bool) {
-    let keybd_input = KEYBDINPUT {
-        wVk: key_code as u16,
-        dwExtraInfo: 0,
-        wScan: 0,
-        time: 0,
-        dwFlags: if state { 0 } else { KEYEVENTF_KEYUP },
-    };
+fn execute_keyboard_action(key_code: i32, state: KeyState) {
+    if state != KeyState::Pressed {
+        let keybd_input = KEYBDINPUT {
+            wVk: key_code as u16,
+            dwExtraInfo: 0,
+            wScan: 0,
+            time: 0,
+            dwFlags: if state == KeyState::Down {
+                0
+            } else {
+                KEYEVENTF_KEYUP
+            },
+        };
 
-    let mut input = INPUT {
-        type_: INPUT_KEYBOARD,
-        u: unsafe { std::mem::transmute_copy(&keybd_input) },
-    };
+        let mut input = INPUT {
+            type_: INPUT_KEYBOARD,
+            u: unsafe { std::mem::transmute_copy(&keybd_input) },
+        };
 
-    unsafe {
-        SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
-    };
+        unsafe {
+            SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
+        };
+    } else {
+        let mut inputs = [
+            INPUT {
+                type_: INPUT_KEYBOARD,
+                u: unsafe {
+                    std::mem::transmute_copy(&KEYBDINPUT {
+                        wVk: key_code as u16,
+                        dwExtraInfo: 0,
+                        wScan: 0,
+                        time: 0,
+                        dwFlags: 0,
+                    })
+                },
+            },
+            INPUT {
+                type_: INPUT_KEYBOARD,
+                u: unsafe {
+                    std::mem::transmute_copy(&KEYBDINPUT {
+                        wVk: key_code as u16,
+                        dwExtraInfo: 0,
+                        wScan: 0,
+                        time: 0,
+                        dwFlags: KEYEVENTF_KEYUP,
+                    })
+                },
+            },
+        ];
+
+        unsafe {
+            SendInput(2, inputs.as_mut_ptr(), std::mem::size_of::<INPUT>() as i32);
+        };
+    }
 }
 
 pub fn play_back_actions(action_list: &[Action], settings: &Settings) {

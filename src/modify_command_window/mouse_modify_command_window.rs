@@ -18,29 +18,56 @@ pub struct MouseModifyCommandWindow {
 struct MouseModifyCommandWindowData {
     creating_command: bool,
     position: Option<Pos2>,
-    combo_box_type: Option<MouseComboBoxType>,
-    mouse_position_checkbox_state: Option<bool>,
-    first_setup: bool,
+    combo_box_type: MouseComboBoxType,
+    mouse_position_checkbox_state: bool,
     mouse_position_text_edit_text: (String, String),
     scroll_text_edit_text: String,
+    f2_previously_pressed: bool,
+    f3_previously_pressed: bool,
+    window_visible: bool,
 }
 
 impl MouseModifyCommandWindow {
-    pub fn new(creating_command: bool, position: Pos2) -> Self {
+    pub fn new(
+        creating_command: bool,
+        position: Pos2,
+        mouse_action_kind: &MouseActionKind,
+    ) -> Self {
+        let mouse_position = match mouse_action_kind {
+            MouseActionKind::Button(button) => button.point,
+            MouseActionKind::Moved(point) => Some(*point),
+            MouseActionKind::Wheel(_, point) => *point,
+        };
+
+        let mouse_position_text_edit_text = if let Some(position) = mouse_position {
+            (position.x.to_string(), position.y.to_string())
+        } else {
+            (String::new(), String::new())
+        };
+
+        let scroll_text_edit_text =
+            if let actions::MouseActionKind::Wheel(amount, _) = mouse_action_kind {
+                (amount / 120).to_string()
+            } else {
+                String::new()
+            };
+
         Self {
             data: RefCell::new(MouseModifyCommandWindowData {
                 creating_command,
                 position: Some(position),
-                combo_box_type: None,
-                first_setup: true,
-                mouse_position_checkbox_state: None,
-                mouse_position_text_edit_text: (String::new(), String::new()),
-                scroll_text_edit_text: String::new(),
+                combo_box_type: MouseComboBoxType::from(mouse_action_kind),
+                mouse_position_checkbox_state: mouse_position.is_some(),
+                mouse_position_text_edit_text,
+                scroll_text_edit_text,
+                f2_previously_pressed: capture_mouse_position_key_pressed(),
+                f3_previously_pressed: minimize_window_key_pressed(),
+                window_visible: true,
             }),
         }
     }
 
-    fn setup(&self, recorder: &mut Recorder, drag_bounds: Rect) -> Window {
+    fn setup(&self, drag_bounds: Rect) -> Window {
         let mut window = Window::new("Mouse")
             .collapsible(false)
             .resizable(false)
@@ -53,33 +80,6 @@ impl MouseModifyCommandWindow {
             data.position = None;
         }
 
-        if data.first_setup {
-            if let actions::Action::Mouse(action) =
-                &recorder.action_list[recorder.selected_row.unwrap()]
-            {
-                data.combo_box_type = Some(MouseComboBoxType::from(action));
-
-                let mouse_position = match action {
-                    MouseActionKind::Button(button) => button.point,
-                    MouseActionKind::Moved(point) => Some(*point),
-                    MouseActionKind::Wheel(_, point) => *point,
-                };
-
-                data.mouse_position_checkbox_state = Some(mouse_position.is_some());
-
-                if let Some(text) =
-                    mouse_position.map(|position| (position.x.to_string(), position.y.to_string()))
-                {
-                    data.mouse_position_text_edit_text = text;
-                }
-
-                if let actions::MouseActionKind::Wheel(amount, _) = action {
-                    data.scroll_text_edit_text = (amount / 120).to_string();
-                }
-
-                data.first_setup = false;
-            }
-        }
         window
     }
 }
@@ -152,25 +152,50 @@ impl Display for MouseComboBoxType {
 }
 
 impl ModifyCommandWindow for MouseModifyCommandWindow {
-    fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, drag_bounds: Rect) {
-        let window = self.setup(recorder, drag_bounds);
+    fn update(
+        &self,
+        recorder: &mut Recorder,
+        ctx: &Context,
+        ui: &mut Ui,
+        drag_bounds: Rect,
+        frame: &mut eframe::Frame,
+    ) {
+        let window = self.setup(drag_bounds);
 
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
 
             if capture_mouse_position_key_pressed() {
-                let mut point = unsafe { std::mem::zeroed() };
-                unsafe {
-                    GetCursorPos(&mut point);
-                };
+                if !data.f2_previously_pressed {
+                    let mut point = unsafe { std::mem::zeroed() };
+                    unsafe {
+                        GetCursorPos(&mut point);
+                    };
 
-                data.mouse_position_text_edit_text = (point.x.to_string(), point.y.to_string());
+                    data.mouse_position_text_edit_text = (point.x.to_string(), point.y.to_string());
+                    data.window_visible = true;
+                    frame.set_visible(true);
+                    data.f2_previously_pressed = true;
+                }
+            } else {
+                data.f2_previously_pressed = false;
+            }
+
+            if minimize_window_key_pressed() {
+                if !data.f3_previously_pressed {
+                    data.f3_previously_pressed = true;
+
+                    data.window_visible = !data.window_visible;
+                    frame.set_visible(data.window_visible);
+                }
+            } else {
+                data.f3_previously_pressed = false;
             }
 
             ui.allocate_space(vec2(0.0, 10.0));
 
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                let selected = data.combo_box_type.as_mut().unwrap();
+                let selected = &mut data.combo_box_type;
 
                 ui.label("Event Type: ");
                 ui.add_space(10.0);
@@ -182,11 +207,13 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
                             let text = format!("{}", combo_box_type);
 
                             ui.selectable_value(selected, combo_box_type, text);
+
+                            ui.allocate_space(vec2(0.0, 3.5));
                         }
                     });
             });
 
-            if data.combo_box_type.unwrap() != MouseComboBoxType::Move {
+            if data.combo_box_type != MouseComboBoxType::Move {
                 ui.allocate_space(vec2(0.0, 25.0));
 
                 ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
@@ -198,14 +225,13 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
 
                     ui.add_space(10.0);
 
-                    let mouse_position_checked = &mut data.mouse_position_checkbox_state.unwrap();
+                    let mouse_position_checked = &mut data.mouse_position_checkbox_state;
                     ui.checkbox(mouse_position_checked, "");
-                    data.mouse_position_checkbox_state = Some(*mouse_position_checked);
+                    data.mouse_position_checkbox_state = *mouse_position_checked;
                 });
             }
 
-            if data.mouse_position_checkbox_state.unwrap()
-                || data.combo_box_type.unwrap() == MouseComboBoxType::Move
+            if data.mouse_position_checkbox_state || data.combo_box_type == MouseComboBoxType::Move
             {
                 ui.allocate_space(vec2(0.0, 25.0));
 
@@ -245,9 +271,11 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
 
                 ui.add_space(35.0);
                 ui.label("Press F2 to capture the current mouse position.");
+                ui.add_space(15.0);
+                ui.label("Press F3 to hide the window.");
             }
 
-            if data.combo_box_type.unwrap() == MouseComboBoxType::Wheel {
+            if data.combo_box_type == MouseComboBoxType::Wheel {
                 ui.allocate_space(vec2(0.0, 25.0));
 
                 ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
@@ -274,12 +302,12 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
                 }
                 ui.add_space(35.0);
                 if ui.button("Save").clicked() {
-                    match data.combo_box_type.unwrap() {
+                    match data.combo_box_type {
                         MouseComboBoxType::Wheel => {
                             if let Ok(mut scroll) = data.scroll_text_edit_text.parse() {
                                 scroll *= 120;
 
-                                if data.mouse_position_checkbox_state.unwrap() {
+                                if data.mouse_position_checkbox_state {
                                     if let (Ok(x), Ok(y)) = (
                                         data.mouse_position_text_edit_text.0.parse(),
                                         data.mouse_position_text_edit_text.1.parse(),
@@ -309,7 +337,7 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
                             }
                         }
                         _ => {
-                            let button = match data.combo_box_type.unwrap() {
+                            let button = match data.combo_box_type {
                                 MouseComboBoxType::LeftClick
                                 | MouseComboBoxType::LeftDown
                                 | MouseComboBoxType::LeftUp => VK_LBUTTON,
@@ -322,7 +350,7 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
                                 _ => unreachable!(),
                             };
 
-                            let state = match data.combo_box_type.unwrap() {
+                            let state = match data.combo_box_type {
                                 MouseComboBoxType::LeftClick
                                 | MouseComboBoxType::RightClick
                                 | MouseComboBoxType::MiddleClick => MouseActionButtonState::Clicked,
@@ -335,7 +363,7 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
                                 _ => unreachable!(),
                             };
 
-                            if data.mouse_position_checkbox_state.unwrap() {
+                            if data.mouse_position_checkbox_state {
                                 if let (Ok(x), Ok(y)) = (
                                     data.mouse_position_text_edit_text.0.parse(),
                                     data.mouse_position_text_edit_text.1.parse(),
@@ -367,4 +395,8 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
 
 pub fn capture_mouse_position_key_pressed() -> bool {
     unsafe { GetAsyncKeyState(VK_F2) < 0 }
+}
+
+pub fn minimize_window_key_pressed() -> bool {
+    unsafe { GetAsyncKeyState(VK_F3) < 0 }
 }

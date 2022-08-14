@@ -523,6 +523,7 @@ impl App for Recorder {
                             SIDE_PANEL_WIDTH..=frame.info().window_info.size.x,
                             TOP_PANEL_HEIGHT..=frame.info().window_info.size.y,
                         ),
+                        frame,
                     );
                 }
 

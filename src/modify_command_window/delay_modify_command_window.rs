@@ -1,10 +1,7 @@
 use std::cell::RefCell;
 
-use crate::{
-    actions::{self, Action},
-    gui::Recorder,
-};
-use eframe::{egui::*, *};
+use crate::{actions::Action, gui::Recorder};
+use eframe::egui::*;
 
 use super::ModifyCommandWindow;
 
@@ -15,21 +12,21 @@ pub struct DelayModifyCommandWindow {
 struct DelayModifyCommandWindowData {
     creating_command: bool,
     position: Option<Pos2>,
-    text_edit_text: Option<String>,
+    text_edit_text: String,
 }
 
 impl DelayModifyCommandWindow {
-    pub fn new(creating_command: bool, position: Pos2) -> Self {
+    pub fn new(creating_command: bool, position: Pos2, delay: u32) -> Self {
         Self {
             data: RefCell::new(DelayModifyCommandWindowData {
                 creating_command,
                 position: Some(position),
-                text_edit_text: None,
+                text_edit_text: delay.to_string(),
             }),
         }
     }
 
-    fn setup(&self, recorder: &mut Recorder, drag_bounds: Rect) -> Window {
+    fn setup(&self, drag_bounds: Rect) -> Window {
         let mut window = Window::new("Delay")
             .collapsible(false)
             .resizable(false)
@@ -42,21 +39,20 @@ impl DelayModifyCommandWindow {
             data.position = None;
         }
 
-        if data.text_edit_text.is_none() {
-            if let actions::Action::Delay(delay) =
-                recorder.action_list[recorder.selected_row.unwrap()]
-            {
-                data.text_edit_text = Some(delay.to_string());
-            }
-        }
-
         window
     }
 }
 
 impl ModifyCommandWindow for DelayModifyCommandWindow {
-    fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, drag_bounds: Rect) {
-        let window = self.setup(recorder, drag_bounds);
+    fn update(
+        &self,
+        recorder: &mut Recorder,
+        ctx: &Context,
+        _ui: &mut Ui,
+        drag_bounds: Rect,
+        _frame: &mut eframe::Frame,
+    ) {
+        let window = self.setup(drag_bounds);
 
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
@@ -64,8 +60,8 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
             ui.allocate_space(Vec2::new(0.0, 25.0));
 
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                let duration_area = TextEdit::singleline(data.text_edit_text.as_mut().unwrap())
-                    .desired_width(150.0);
+                let duration_area =
+                    TextEdit::singleline(&mut data.text_edit_text).desired_width(150.0);
 
                 ui.add_space(35.0);
                 duration_area.ui(ui);
@@ -87,7 +83,7 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
                 }
                 ui.add_space(35.0);
                 if ui.button("Save").clicked() {
-                    if let Ok(delay) = data.text_edit_text.as_ref().unwrap().parse::<u32>() {
+                    if let Ok(delay) = data.text_edit_text.parse::<u32>() {
                         recorder.modify_command_window = None;
                         recorder.action_list[recorder.selected_row.unwrap()] = Action::Delay(delay);
                     }

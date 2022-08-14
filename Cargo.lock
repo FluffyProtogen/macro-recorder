@@ -1137,6 +1137,7 @@ dependencies = [
  "chrono",
  "eframe",
  "egui",
+ "lazy_static",
  "rfd",
  "serde",
  "serde_json",

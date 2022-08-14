@@ -15,3 +15,4 @@ eframe = { git = "https://github.com/emilk/egui"}
 rfd = "0.10.0"
 strum = "0.24.1"
 strum_macros = "0.24.3"
+lazy_static = "1.4.0"

@@ -32,7 +32,14 @@ pub enum MouseActionButtonState {
 pub enum Action {
     Delay(u32),
     Mouse(MouseActionKind),
-    Keyboard(i32, bool),
+    Keyboard(i32, KeyState),
+}
+
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Debug)]
+pub enum KeyState {
+    Down,
+    Up,
+    Pressed,
 }
 
 impl Action {
@@ -51,8 +58,8 @@ impl Action {
                         "Button {} {}",
                         key_code_to_string(action_button.button),
                         match action_button.state {
-                            MouseActionButtonState::Pressed => "Pressed",
-                            MouseActionButtonState::Released => "Released",
+                            MouseActionButtonState::Pressed => "Down",
+                            MouseActionButtonState::Released => "Up",
                             MouseActionButtonState::Clicked => "Clicked",
                         }
                     ),
@@ -65,14 +72,10 @@ impl Action {
                     ["Mouse".into(), "Wheel".into(), (amount / 120).to_string()]
                 }
             },
-            Self::Keyboard(key_code, pressed) => [
+            Self::Keyboard(key_code, state) => [
                 "Keyboard".into(),
                 format!("Key {}", key_code_to_string(*key_code)),
-                if *pressed {
-                    "Pressed".into()
-                } else {
-                    "Released".into()
-                },
+                format!("{:?}", state),
             ],
         }
     }

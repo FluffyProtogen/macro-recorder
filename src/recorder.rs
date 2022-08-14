@@ -5,9 +5,9 @@ use winapi::{
     um::{processthreadsapi::GetCurrentThreadId, sysinfoapi::GetTickCount, winuser::*},
 };
 
-use crate::actions::MouseActionKind::*;
 use crate::actions::{Action, MouseActionButton, Point};
 use crate::actions::{Action::*, MouseActionButtonState};
+use crate::actions::{KeyState, MouseActionKind::*};
 pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
     unsafe {
         KEYBOARD_ACTIONS.clear();
@@ -157,7 +157,11 @@ fn combine_into_action_list(
 
             actions.push(Keyboard(
                 keyboard_actions[keyboard_index].0.vkCode as i32,
-                pressed,
+                if pressed {
+                    KeyState::Down
+                } else {
+                    KeyState::Up
+                },
             ));
 
             current_time = keyboard_actions[keyboard_index].0.time;
