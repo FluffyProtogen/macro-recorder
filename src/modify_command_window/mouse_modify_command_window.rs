@@ -165,6 +165,13 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
 
+            if ui.input().key_pressed(Key::Enter) {
+                self.save(data, recorder);
+            }
+            if ui.input().key_pressed(Key::Escape) {
+                self.cancel(data, recorder);
+            }
+
             if capture_mouse_position_key_pressed() {
                 if !data.f2_previously_pressed {
                     let mut point = unsafe { std::mem::zeroed() };
@@ -294,102 +301,109 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                 ui.add_space(35.0);
                 if ui.button("Cancel").clicked() {
-                    recorder.modify_command_window = None;
-                    if data.creating_command {
-                        recorder.action_list.remove(recorder.selected_row.unwrap());
-                        recorder.selected_row = None;
-                    }
+                    self.cancel(data, recorder);
                 }
                 ui.add_space(35.0);
                 if ui.button("Save").clicked() {
-                    match data.combo_box_type {
-                        MouseComboBoxType::Wheel => {
-                            if let Ok(mut scroll) = data.scroll_text_edit_text.parse() {
-                                scroll *= 120;
-
-                                if data.mouse_position_checkbox_state {
-                                    if let (Ok(x), Ok(y)) = (
-                                        data.mouse_position_text_edit_text.0.parse(),
-                                        data.mouse_position_text_edit_text.1.parse(),
-                                    ) {
-                                        recorder.modify_command_window = None;
-                                        recorder.action_list[recorder.selected_row.unwrap()] =
-                                            Action::Mouse(MouseActionKind::Wheel(
-                                                scroll,
-                                                Some(Point { x, y }),
-                                            ));
-                                    }
-                                } else {
-                                    recorder.modify_command_window = None;
-                                    recorder.action_list[recorder.selected_row.unwrap()] =
-                                        Action::Mouse(MouseActionKind::Wheel(scroll, None));
-                                }
-                            }
-                        }
-                        MouseComboBoxType::Move => {
-                            if let (Ok(x), Ok(y)) = (
-                                data.mouse_position_text_edit_text.0.parse(),
-                                data.mouse_position_text_edit_text.1.parse(),
-                            ) {
-                                recorder.modify_command_window = None;
-                                recorder.action_list[recorder.selected_row.unwrap()] =
-                                    Action::Mouse(MouseActionKind::Moved(Point { x, y }));
-                            }
-                        }
-                        _ => {
-                            let button = match data.combo_box_type {
-                                MouseComboBoxType::LeftClick
-                                | MouseComboBoxType::LeftDown
-                                | MouseComboBoxType::LeftUp => VK_LBUTTON,
-                                MouseComboBoxType::RightClick
-                                | MouseComboBoxType::RightDown
-                                | MouseComboBoxType::RightUp => VK_RBUTTON,
-                                MouseComboBoxType::MiddleClick
-                                | MouseComboBoxType::MiddleDown
-                                | MouseComboBoxType::MiddleUp => VK_MBUTTON,
-                                _ => unreachable!(),
-                            };
-
-                            let state = match data.combo_box_type {
-                                MouseComboBoxType::LeftClick
-                                | MouseComboBoxType::RightClick
-                                | MouseComboBoxType::MiddleClick => MouseActionButtonState::Clicked,
-                                MouseComboBoxType::LeftDown
-                                | MouseComboBoxType::RightDown
-                                | MouseComboBoxType::MiddleDown => MouseActionButtonState::Pressed,
-                                MouseComboBoxType::LeftUp
-                                | MouseComboBoxType::RightUp
-                                | MouseComboBoxType::MiddleUp => MouseActionButtonState::Released,
-                                _ => unreachable!(),
-                            };
-
-                            if data.mouse_position_checkbox_state {
-                                if let (Ok(x), Ok(y)) = (
-                                    data.mouse_position_text_edit_text.0.parse(),
-                                    data.mouse_position_text_edit_text.1.parse(),
-                                ) {
-                                    recorder.modify_command_window = None;
-                                    recorder.action_list[recorder.selected_row.unwrap()] =
-                                        Action::Mouse(MouseActionKind::Button(MouseActionButton {
-                                            point: Some(Point { x, y }),
-                                            button,
-                                            state,
-                                        }));
-                                }
-                            } else {
-                                recorder.modify_command_window = None;
-                                recorder.action_list[recorder.selected_row.unwrap()] =
-                                    Action::Mouse(MouseActionKind::Button(MouseActionButton {
-                                        point: None,
-                                        button,
-                                        state,
-                                    }));
-                            }
-                        }
-                    }
+                    self.save(data, recorder);
                 }
             });
         });
+    }
+}
+
+impl MouseModifyCommandWindow {
+    fn save(&self, data: &MouseModifyCommandWindowData, recorder: &mut Recorder) {
+        match data.combo_box_type {
+            MouseComboBoxType::Wheel => {
+                if let Ok(mut scroll) = data.scroll_text_edit_text.parse() {
+                    scroll *= 120;
+
+                    if data.mouse_position_checkbox_state {
+                        if let (Ok(x), Ok(y)) = (
+                            data.mouse_position_text_edit_text.0.parse(),
+                            data.mouse_position_text_edit_text.1.parse(),
+                        ) {
+                            recorder.modify_command_window = None;
+                            recorder.action_list[recorder.selected_row.unwrap()] =
+                                Action::Mouse(MouseActionKind::Wheel(scroll, Some(Point { x, y })));
+                        }
+                    } else {
+                        recorder.modify_command_window = None;
+                        recorder.action_list[recorder.selected_row.unwrap()] =
+                            Action::Mouse(MouseActionKind::Wheel(scroll, None));
+                    }
+                }
+            }
+            MouseComboBoxType::Move => {
+                if let (Ok(x), Ok(y)) = (
+                    data.mouse_position_text_edit_text.0.parse(),
+                    data.mouse_position_text_edit_text.1.parse(),
+                ) {
+                    recorder.modify_command_window = None;
+                    recorder.action_list[recorder.selected_row.unwrap()] =
+                        Action::Mouse(MouseActionKind::Moved(Point { x, y }));
+                }
+            }
+            _ => {
+                let button = match data.combo_box_type {
+                    MouseComboBoxType::LeftClick
+                    | MouseComboBoxType::LeftDown
+                    | MouseComboBoxType::LeftUp => VK_LBUTTON,
+                    MouseComboBoxType::RightClick
+                    | MouseComboBoxType::RightDown
+                    | MouseComboBoxType::RightUp => VK_RBUTTON,
+                    MouseComboBoxType::MiddleClick
+                    | MouseComboBoxType::MiddleDown
+                    | MouseComboBoxType::MiddleUp => VK_MBUTTON,
+                    _ => unreachable!(),
+                };
+
+                let state = match data.combo_box_type {
+                    MouseComboBoxType::LeftClick
+                    | MouseComboBoxType::RightClick
+                    | MouseComboBoxType::MiddleClick => MouseActionButtonState::Clicked,
+                    MouseComboBoxType::LeftDown
+                    | MouseComboBoxType::RightDown
+                    | MouseComboBoxType::MiddleDown => MouseActionButtonState::Pressed,
+                    MouseComboBoxType::LeftUp
+                    | MouseComboBoxType::RightUp
+                    | MouseComboBoxType::MiddleUp => MouseActionButtonState::Released,
+                    _ => unreachable!(),
+                };
+
+                if data.mouse_position_checkbox_state {
+                    if let (Ok(x), Ok(y)) = (
+                        data.mouse_position_text_edit_text.0.parse(),
+                        data.mouse_position_text_edit_text.1.parse(),
+                    ) {
+                        recorder.modify_command_window = None;
+                        recorder.action_list[recorder.selected_row.unwrap()] =
+                            Action::Mouse(MouseActionKind::Button(MouseActionButton {
+                                point: Some(Point { x, y }),
+                                button,
+                                state,
+                            }));
+                    }
+                } else {
+                    recorder.modify_command_window = None;
+                    recorder.action_list[recorder.selected_row.unwrap()] =
+                        Action::Mouse(MouseActionKind::Button(MouseActionButton {
+                            point: None,
+                            button,
+                            state,
+                        }));
+                }
+            }
+        }
+    }
+
+    fn cancel(&self, data: &MouseModifyCommandWindowData, recorder: &mut Recorder) {
+        recorder.modify_command_window = None;
+        if data.creating_command {
+            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.selected_row = None;
+        }
     }
 }
 

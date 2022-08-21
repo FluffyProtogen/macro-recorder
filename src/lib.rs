@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod gui;
+pub mod image;
 pub mod keycodes_to_string;
 pub mod modify_command_window;
 pub mod recorder;

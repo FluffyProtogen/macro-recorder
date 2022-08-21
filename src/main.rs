@@ -1,5 +1,4 @@
 //#![windows_subsystem = "windows"]
-
 use eframe::*;
 use egui::vec2;
 use macro_recorder::*;

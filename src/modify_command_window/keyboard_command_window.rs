@@ -49,6 +49,14 @@ impl KeyboardModifyCommandWindow {
 
         window
     }
+
+    fn cancel(&self, data: &KeyboardModifyCommandWindowData, recorder: &mut Recorder) {
+        recorder.modify_command_window = None;
+        if data.creating_command {
+            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.selected_row = None;
+        }
+    }
 }
 
 impl ModifyCommandWindow for KeyboardModifyCommandWindow {
@@ -63,7 +71,14 @@ impl ModifyCommandWindow for KeyboardModifyCommandWindow {
         let window = self.setup(recorder, drag_bounds);
 
         window.show(ctx, |ui| {
-            let mut data = self.data.borrow_mut();
+            let data = &mut self.data.borrow_mut();
+
+            if ui.input().key_pressed(Key::Enter) {
+                self.save(data, recorder);
+            }
+            if ui.input().key_pressed(Key::Escape) {
+                self.cancel(data, recorder);
+            }
 
             ui.allocate_space(vec2(0.0, 25.0));
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
@@ -93,7 +108,7 @@ impl ModifyCommandWindow for KeyboardModifyCommandWindow {
                     .selected_text(if let Some(key_code) = data.key_code {
                         key_code_to_string(key_code)
                     } else {
-                        "Invalid Key Code".to_string()
+                        "Invalid Key Code".into()
                     })
                     .width(140.0)
                     .show_ui(ui, |ui| {
@@ -139,13 +154,19 @@ impl ModifyCommandWindow for KeyboardModifyCommandWindow {
                 }
                 ui.add_space(35.0);
                 if ui.button("Save").clicked() {
-                    if let Some(key_code) = data.key_code {
-                        recorder.modify_command_window = None;
-                        recorder.action_list[recorder.selected_row.unwrap()] =
-                            Action::Keyboard(key_code, data.key_state);
-                    }
+                    self.save(data, recorder);
                 }
             });
         });
+    }
+}
+
+impl KeyboardModifyCommandWindow {
+    fn save(&self, data: &KeyboardModifyCommandWindowData, recorder: &mut Recorder) {
+        if let Some(key_code) = data.key_code {
+            recorder.modify_command_window = None;
+            recorder.action_list[recorder.selected_row.unwrap()] =
+                Action::Keyboard(key_code, data.key_state);
+        }
     }
 }

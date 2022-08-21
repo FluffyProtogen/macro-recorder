@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use winapi::um::winuser::*;
 
 lazy_static::lazy_static! {
@@ -53,7 +55,7 @@ lazy_static::lazy_static! {
     };
 }
 
-pub fn key_code_to_string(code: i32) -> String {
+pub fn key_code_to_string(code: i32) -> Cow<'static, str> {
     match code {
         VK_LBUTTON => "Left".into(),
         VK_RBUTTON => "Right".into(),
@@ -86,22 +88,22 @@ pub fn key_code_to_string(code: i32) -> String {
         VK_INSERT => "Insert".into(),
         VK_DELETE => "Delete".into(),
         VK_HELP => "Help".into(),
-        0x30..=0x39 => (code - 0x30).to_string(),
-        0x41..=0x5A => (code as u8 as char).into(),
+        0x30..=0x39 => (code - 0x30).to_string().into(),
+        0x41..=0x5A => (code as u8 as char).to_string().into(),
         VK_LWIN => "Left Windows".into(),
         VK_RWIN => "Right Windows".into(),
         VK_APPS => "Applications".into(),
         VK_SLEEP => "Sleep".into(),
-        VK_NUMPAD0..=VK_NUMPAD9 => format!("Number Pad {}", code - VK_NUMPAD0),
+        VK_NUMPAD0..=VK_NUMPAD9 => format!("Number Pad {}", code - VK_NUMPAD0).into(),
         VK_ADD => "Add".into(),
         VK_SUBTRACT => "Subtract".into(),
         VK_MULTIPLY => "Multiply".into(),
         VK_DIVIDE => "Divide".into(),
         VK_SEPARATOR => "Separator".into(),
         VK_DECIMAL => "Decimal".into(),
-        VK_F1..=VK_F24 => format!("F{}", code - VK_F1 + 1),
+        VK_F1..=VK_F24 => format!("F{}", code - VK_F1 + 1).into(),
         VK_NUMLOCK => "Number Lock".into(),
         VK_SCROLL => "Scroll".into(),
-        _ => format!("Key Code: {}", code),
+        _ => format!("Key Code: {}", code).into(),
     }
 }

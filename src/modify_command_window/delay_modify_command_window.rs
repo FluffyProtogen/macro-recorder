@@ -41,6 +41,21 @@ impl DelayModifyCommandWindow {
 
         window
     }
+
+    fn save(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
+        if let Ok(delay) = data.text_edit_text.parse::<u32>() {
+            recorder.modify_command_window = None;
+            recorder.action_list[recorder.selected_row.unwrap()] = Action::Delay(delay);
+        }
+    }
+
+    fn cancel(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
+        recorder.modify_command_window = None;
+        if data.creating_command {
+            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.selected_row = None;
+        }
+    }
 }
 
 impl ModifyCommandWindow for DelayModifyCommandWindow {
@@ -48,7 +63,7 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
         &self,
         recorder: &mut Recorder,
         ctx: &Context,
-        _ui: &mut Ui,
+        ui: &mut Ui,
         drag_bounds: Rect,
         _frame: &mut eframe::Frame,
     ) {
@@ -56,6 +71,13 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
 
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
+
+            if ui.input().key_pressed(Key::Enter) {
+                self.save(data, recorder);
+            }
+            if ui.input().key_pressed(Key::Escape) {
+                self.cancel(data, recorder);
+            }
 
             ui.allocate_space(Vec2::new(0.0, 25.0));
 
@@ -75,18 +97,11 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                 ui.add_space(35.0);
                 if ui.button("Cancel").clicked() {
-                    recorder.modify_command_window = None;
-                    if data.creating_command {
-                        recorder.action_list.remove(recorder.selected_row.unwrap());
-                        recorder.selected_row = None;
-                    }
+                    self.cancel(data, recorder);
                 }
                 ui.add_space(35.0);
                 if ui.button("Save").clicked() {
-                    if let Ok(delay) = data.text_edit_text.parse::<u32>() {
-                        recorder.modify_command_window = None;
-                        recorder.action_list[recorder.selected_row.unwrap()] = Action::Delay(delay);
-                    }
+                    self.save(data, recorder);
                 }
             });
         });

@@ -1,11 +1,9 @@
-//#![windows_subsystem = "windows"]
-
 use eframe::{egui::*, *};
 
 use std::{path::*, rc::Rc};
 
 use crate::{
-    actions::Action,
+    actions::{Action, KeyState, MouseActionKind, Point},
     load_from_file,
     modify_command_window::ModifyCommandWindow,
     play_back_actions, play_key_pressed,
@@ -42,7 +40,6 @@ impl Recorder {
     pub fn new(cc: &CreationContext<'_>, action_list: Vec<Action>) -> Self {
         use crate::gui::FontFamily::*;
         use crate::gui::TextStyle::*;
-        use crate::settings::*;
         cc.egui_ctx.set_visuals(Visuals::light());
 
         let mut style = (*cc.egui_ctx.style()).clone();
@@ -257,7 +254,7 @@ impl Recorder {
             });
     }
 
-    fn side_panel(ctx: &Context, screen_dimensions: Vec2) {
+    fn side_panel(&mut self, ctx: &Context, screen_dimensions: Vec2) {
         Area::new("Side Panel")
             .order(Order::Middle)
             .current_pos(Pos2 { x: 0.0, y: 0.0 })
@@ -292,6 +289,84 @@ impl Recorder {
                     Color32::from_rgb(210, 210, 210),
                 );
             });
+
+        Area::new("Side Panel Buttons")
+            .current_pos(Pos2 { x: 0.0, y: 0.0 })
+            .order(Order::Foreground)
+            .show(ctx, |ui| {
+                ui.set_enabled(!self.are_any_modals_open());
+
+                ui.allocate_space(vec2(0.0, 25.0));
+
+                let style = ui
+                    .style_mut()
+                    .text_styles
+                    .get_mut(&crate::gui::TextStyle::Button)
+                    .unwrap();
+
+                style.size = 20.0;
+
+                ui.with_layout(Layout::top_down(Align::TOP), |ui| {
+                    ui.allocate_space(vec2(65.0, 50.0));
+
+                    if ui.button("Mouse").clicked() {
+                        self.create_action_window(
+                            Action::Mouse(MouseActionKind::Moved(Point { x: 0, y: 0 })),
+                            screen_dimensions,
+                        );
+                    }
+
+                    ui.allocate_space(vec2(0.0, 30.0));
+
+                    if ui.button("Key").clicked() {
+                        self.create_action_window(
+                            Action::Keyboard(0x41, KeyState::Pressed),
+                            screen_dimensions,
+                        );
+                    }
+
+                    ui.allocate_space(vec2(0.0, 30.0));
+
+                    ui.menu_button("Wait", |ui| {
+                        ui.add_space(3.0);
+                        ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                            ui.add_space(5.0);
+                            if ui.button("Delay").clicked() {
+                                self.create_action_window(Action::Delay(0), screen_dimensions);
+                            }
+                        });
+
+                        ui.allocate_space(vec2(0.0, 10.0));
+                        ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                            ui.add_space(5.0);
+                            if ui.button("Wait for image").clicked() {}
+                        });
+                        ui.add_space(3.0);
+                    });
+                });
+            });
+    }
+
+    fn create_action_window(&mut self, action: Action, screen_dimensions: Vec2) {
+        self.modify_command_window = Some(Rc::new(action.get_modify_command_window(
+            true,
+            pos2(
+                screen_dimensions.x / 2.0 - SIDE_PANEL_WIDTH,
+                screen_dimensions.y / 2.0 - TOP_PANEL_HEIGHT,
+            ),
+        )));
+
+        self.create_action(action);
+    }
+
+    fn create_action(&mut self, action: Action) {
+        if let Some(row) = self.selected_row {
+            self.action_list.insert(row + 1, action);
+            self.selected_row = Some(row + 1);
+        } else {
+            self.action_list.push(action);
+            self.selected_row = Some(self.action_list.len() - 1);
+        }
     }
 
     fn dividing_lines(ui: &mut Ui, screen_dimensions: Vec2) {
@@ -395,7 +470,12 @@ impl Recorder {
         }
     }
 
-    fn handle_main_menu_key_presses(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
+    fn handle_main_menu_key_presses(
+        &mut self,
+        ui: &mut Ui,
+        frame: &mut eframe::Frame,
+        screen_dimensions: Vec2,
+    ) {
         if self.are_any_modals_open() {
             return;
         }
@@ -425,6 +505,18 @@ impl Recorder {
                     self.try_save(path, frame);
                 }
             }
+        }
+
+        if let (true, Some(row)) = (ui.input().key_pressed(Key::Enter), self.selected_row) {
+            self.modify_command_window = Some(Rc::new(
+                self.action_list[self.selected_row.unwrap()].get_modify_command_window(
+                    false,
+                    pos2(
+                        screen_dimensions.x / 2.0 - SIDE_PANEL_WIDTH,
+                        screen_dimensions.y / 2.0 - TOP_PANEL_HEIGHT,
+                    ),
+                ),
+            ));
         }
     }
 
@@ -505,10 +597,10 @@ impl App for Recorder {
                     });
 
                 self.top_panel(ctx, screen_dimensions, frame);
-                Self::side_panel(ctx, screen_dimensions);
+                self.side_panel(ctx, screen_dimensions);
                 Self::dividing_lines(ui, screen_dimensions);
 
-                self.handle_main_menu_key_presses(ui, frame);
+                self.handle_main_menu_key_presses(ui, frame, screen_dimensions);
 
                 if let Some(dialog) = &self.right_click_dialog.clone() {
                     dialog.update(self, ctx, ui, screen_dimensions);
