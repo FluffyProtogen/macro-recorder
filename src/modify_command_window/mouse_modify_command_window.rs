@@ -156,7 +156,7 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
         &self,
         recorder: &mut Recorder,
         ctx: &Context,
-        ui: &mut Ui,
+        _ui: &mut Ui,
         drag_bounds: Rect,
         frame: &mut eframe::Frame,
     ) {

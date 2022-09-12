@@ -2,13 +2,38 @@ use glium::*;
 
 use glium::{glutin, Surface};
 use glium::{index::PrimitiveType, vertex, Display};
+use std::sync::mpsc::{sync_channel, SyncSender};
 use winit::event::{Event, WindowEvent};
-use winit::event_loop::ControlFlow;
-use winit::platform::windows::WindowBuilderExtWindows;
+use winit::event_loop::{ControlFlow, EventLoop, EventLoopBuilder};
+use winit::platform::windows::{EventLoopBuilderExtWindows, WindowBuilderExtWindows};
+use winit::window::Window;
 use winit_input_helper::WinitInputHelper;
 
-fn main() {
-    let event_loop = glutin::event_loop::EventLoop::new();
+pub fn capture_coordinates() -> ((f32, f32), (f32, f32)) {
+    let (sender, receiver) = sync_channel(0);
+
+    std::thread::spawn(|| {
+        run(sender);
+    });
+
+    receiver.recv().unwrap()
+}
+
+fn run(sender: SyncSender<((f32, f32), (f32, f32))>) {
+    let mut event_loop = glutin::event_loop::EventLoopBuilder::new();
+
+    let event_loop = glutin::platform::windows::EventLoopBuilderExtWindows::with_any_thread(
+        &mut event_loop,
+        true,
+    );
+
+    // let event_loop = winit::platform::windows::EventLoopBuilderExtWindows::with_any_thread(
+    //     &mut event_loop,
+    //     true,
+    // );
+
+    let event_loop = event_loop.build();
+
     let wb = glutin::window::WindowBuilder::new()
         .with_transparent(true)
         .with_decorations(false)
@@ -51,12 +76,43 @@ fn main() {
             }
 
             if input.mouse_released(0) {
+                let initial_mouse_position = initial_mouse_position.unwrap();
+                let current_mouse_position = input.mouse().unwrap();
+
+                sender
+                    .send((
+                        (
+                            lesser(initial_mouse_position.0, current_mouse_position.0),
+                            greater(initial_mouse_position.0, current_mouse_position.0),
+                        ),
+                        (
+                            lesser(initial_mouse_position.1, current_mouse_position.1),
+                            greater(initial_mouse_position.1, current_mouse_position.1),
+                        ),
+                    ))
+                    .unwrap();
                 *control_flow = ControlFlow::Exit;
             }
         }
 
         if let Event::WindowEvent { event, .. } = event {
             if let WindowEvent::Focused(false) = event {
+                let initial_mouse_position = initial_mouse_position.unwrap();
+                let current_mouse_position = previous_mouse_position;
+
+                sender
+                    .send((
+                        (
+                            lesser(initial_mouse_position.0, current_mouse_position.0),
+                            greater(initial_mouse_position.0, current_mouse_position.0),
+                        ),
+                        (
+                            lesser(initial_mouse_position.1, current_mouse_position.1),
+                            greater(initial_mouse_position.1, current_mouse_position.1),
+                        ),
+                    ))
+                    .unwrap();
+
                 *control_flow = ControlFlow::Exit;
             }
         }
@@ -268,6 +324,14 @@ fn draw<'a, 'b, V, I, U>(
 
 fn greater(one: f32, two: f32) -> f32 {
     if one > two {
+        one
+    } else {
+        two
+    }
+}
+
+fn lesser(one: f32, two: f32) -> f32 {
+    if one < two {
         one
     } else {
         two

@@ -1,18 +1,15 @@
 pub mod delay_modify_command_window;
 pub mod keyboard_command_window;
 pub mod mouse_modify_command_window;
+pub mod wait_for_image_modify_command_window;
 
-use std::cell::RefCell;
-
-use crate::{
-    actions::{self, Action},
-    gui::Recorder,
-};
-use eframe::{egui::*, *};
+use crate::{actions::Action, gui::Recorder};
+use eframe::egui::*;
 
 use self::delay_modify_command_window::DelayModifyCommandWindow;
 use self::keyboard_command_window::KeyboardModifyCommandWindow;
 use self::mouse_modify_command_window::MouseModifyCommandWindow;
+use self::wait_for_image_modify_command_window::WaitForImageModifyCommandWindow;
 
 pub trait ModifyCommandWindow {
     fn update(
@@ -22,8 +19,7 @@ pub trait ModifyCommandWindow {
         ui: &mut Ui,
         screen_dimensions: Rect,
         frame: &mut eframe::Frame,
-    ) {
-    }
+    );
 }
 
 impl Action {
@@ -48,6 +44,10 @@ impl Action {
                 position,
                 *key,
                 *key_state,
+            )),
+            Self::WaitForImage => Box::new(WaitForImageModifyCommandWindow::new(
+                creating_command,
+                position,
             )),
         }
     }

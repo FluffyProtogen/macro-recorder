@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 
 use crate::{
-    actions::{self, Action, KeyState},
+    actions::{Action, KeyState},
     gui::Recorder,
     keycodes_to_string::{key_code_to_string, ALLOWED_KEYBOARD_KEYS},
 };
-use eframe::{egui::*, *};
+use eframe::egui::*;
 
 use super::ModifyCommandWindow;
 
@@ -34,7 +34,7 @@ impl KeyboardModifyCommandWindow {
         }
     }
 
-    fn setup(&self, recorder: &mut Recorder, drag_bounds: Rect) -> Window {
+    fn setup(&self, _recorder: &mut Recorder, drag_bounds: Rect) -> Window {
         let mut window = Window::new("Keyboard")
             .collapsible(false)
             .resizable(false)

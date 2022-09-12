@@ -1,6 +1,6 @@
 pub mod actions;
 pub mod gui;
-pub mod image;
+pub mod images;
 pub mod keycodes_to_string;
 pub mod modify_command_window;
 pub mod recorder;
@@ -213,6 +213,8 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
                     MouseActionKind::Button(action) => execute_mouse_action(action),
                     MouseActionKind::Wheel(amount, point) => execute_scroll_wheel(*amount, *point),
                 },
+
+                Action::WaitForImage => todo!(),
             }
         }
 

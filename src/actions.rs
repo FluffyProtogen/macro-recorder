@@ -33,6 +33,7 @@ pub enum Action {
     Delay(u32),
     Mouse(MouseActionKind),
     Keyboard(i32, KeyState),
+    WaitForImage,
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Debug)]
@@ -77,6 +78,7 @@ impl Action {
                 format!("Key {}", key_code_to_string(*key_code)),
                 format!("{:?}", state),
             ],
+            Self::WaitForImage => ["IMAGE".into(), "IMAGE".into(), "IMAGE".into()],
         }
     }
 }

@@ -63,7 +63,7 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
         &self,
         recorder: &mut Recorder,
         ctx: &Context,
-        ui: &mut Ui,
+        _ui: &mut Ui,
         drag_bounds: Rect,
         _frame: &mut eframe::Frame,
     ) {

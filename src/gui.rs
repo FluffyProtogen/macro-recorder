@@ -24,6 +24,7 @@ pub struct Recorder {
     pub settings: Settings,
     pub warning_window: Option<Rc<Box<dyn WarningWindow>>>,
     pub current_macro_path: Option<PathBuf>,
+    pub transparent: bool,
 }
 
 const TOP_PANEL_HEIGHT: f32 = 65.0;
@@ -105,6 +106,7 @@ impl Recorder {
             settings: settings.unwrap_or(Default::default()),
             warning_window,
             current_macro_path: None,
+            transparent: false,
         }
     }
 
@@ -339,7 +341,9 @@ impl Recorder {
                         ui.allocate_space(vec2(0.0, 10.0));
                         ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                             ui.add_space(5.0);
-                            if ui.button("Wait for image").clicked() {}
+                            if ui.button("Wait for image").clicked() {
+                                self.create_action_window(Action::WaitForImage, screen_dimensions);
+                            }
                         });
                         ui.add_space(3.0);
                     });
@@ -549,6 +553,10 @@ impl Recorder {
 }
 
 impl App for Recorder {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> egui::Rgba {
+        Rgba::from_black_alpha(0.0)
+    }
+
     fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         if let Some(action) = &self.next_play_record_action {
             if *action == RecordPlayAction::Play {
@@ -570,7 +578,12 @@ impl App for Recorder {
             self.next_play_record_action = Some(RecordPlayAction::Play);
         }
 
-        CentralPanel::default().show(ctx, |ui| {
+        if self.transparent {
+            CentralPanel::default().frame(egui::Frame::default().fill(Color32::TRANSPARENT))
+        } else {
+            CentralPanel::default()
+        }
+        .show(ctx, |ui| {
             let screen_dimensions = ui.available_size();
 
             ui.allocate_exact_size(
@@ -585,21 +598,22 @@ impl App for Recorder {
             egui::Frame::default().show(ui, |ui| {
                 ui.set_enabled(!self.are_any_modals_open());
 
-                let row_height = ui.spacing().interact_size.y;
+                if !self.transparent {
+                    let row_height = ui.spacing().interact_size.y;
 
-                let total_rows = self.action_list.len();
-                ScrollArea::vertical()
-                    .enable_scrolling(
-                        self.right_click_dialog.is_none() && !self.are_any_modals_open(),
-                    )
-                    .show_rows(ui, row_height, total_rows, |ui, row_range| {
-                        self.add_buttons(ctx, ui, row_range, screen_dimensions);
-                    });
+                    let total_rows = self.action_list.len();
+                    ScrollArea::vertical()
+                        .enable_scrolling(
+                            self.right_click_dialog.is_none() && !self.are_any_modals_open(),
+                        )
+                        .show_rows(ui, row_height, total_rows, |ui, row_range| {
+                            self.add_buttons(ctx, ui, row_range, screen_dimensions);
+                        });
 
-                self.top_panel(ctx, screen_dimensions, frame);
-                self.side_panel(ctx, screen_dimensions);
-                Self::dividing_lines(ui, screen_dimensions);
-
+                    self.top_panel(ctx, screen_dimensions, frame);
+                    self.side_panel(ctx, screen_dimensions);
+                    Self::dividing_lines(ui, screen_dimensions);
+                }
                 self.handle_main_menu_key_presses(ui, frame, screen_dimensions);
 
                 if let Some(dialog) = &self.right_click_dialog.clone() {
@@ -645,5 +659,6 @@ impl App for Recorder {
                 }
             });
         });
+        ctx.request_repaint();
     }
 }
