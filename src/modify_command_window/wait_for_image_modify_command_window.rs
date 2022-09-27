@@ -1,7 +1,7 @@
 use crate::{
     actions::Action,
     gui::Recorder,
-    images::{screenshot, IMAGE_PANEL_IMAGE_SIZE},
+    images::{screenshot, screenshot_to_color_image, RawScreenshot, IMAGE_PANEL_IMAGE_SIZE},
 };
 use std::cell::RefCell;
 
@@ -23,6 +23,7 @@ struct WaitForImageModifyCommandWindowData {
     capturing: bool,
     capture_start: Option<Pos2>,
     capture_end: Option<Pos2>,
+    screenshot_raw: Option<RawScreenshot>,
     screenshot_texture: Option<TextureHandle>,
     max_difference_text_edit_text: String,
     search_location_text_edit_texts: Option<((String, String), (String, String))>,
@@ -40,6 +41,7 @@ impl WaitForImageModifyCommandWindow {
                 capturing: false,
                 capture_start: None,
                 capture_end: None,
+                screenshot_raw: None,
                 screenshot_texture: None,
                 max_difference_text_edit_text: "0".into(),
                 search_location_text_edit_texts: None,
@@ -184,11 +186,13 @@ impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
                         && (capture_start.y - capture_end.y).abs() as i32 != 0
                     {
                         if data.capturing_screenshot {
+                            let screenshot = screenshot(capture_start, capture_end);
                             data.screenshot_texture = Some(ctx.load_texture(
                                 "Screenshot",
-                                screenshot(capture_start, capture_end),
+                                screenshot_to_color_image(screenshot.clone()),
                                 TextureFilter::Linear,
                             ));
+                            data.screenshot_raw = Some(screenshot);
                         }
 
                         data.search_location_text_edit_texts = Some((
