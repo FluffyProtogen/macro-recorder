@@ -124,21 +124,23 @@ fn execute_mouse_action(action: &MouseActionButton) {
 
 fn execute_keyboard_action(key_code: i32, state: KeyState) {
     if state != KeyState::Pressed {
-        let keybd_input = KEYBDINPUT {
-            wVk: key_code as u16,
-            dwExtraInfo: 0,
-            wScan: 0,
-            time: 0,
-            dwFlags: if state == KeyState::Down {
-                0
-            } else {
-                KEYEVENTF_KEYUP
-            },
+        let mut keybd_input: INPUT_u = unsafe { std::mem::zeroed() };
+        unsafe {
+            *keybd_input.ki_mut() = KEYBDINPUT {
+                wVk: key_code as u16,
+                dwExtraInfo: 0,
+                wScan: 0,
+                time: 0,
+                dwFlags: if state == KeyState::Down {
+                    0
+                } else {
+                    KEYEVENTF_KEYUP
+                },
+            };
         };
-
         let mut input = INPUT {
             type_: INPUT_KEYBOARD,
-            u: unsafe { std::mem::transmute_copy(&keybd_input) },
+            u: keybd_input,
         };
 
         unsafe {
@@ -149,25 +151,29 @@ fn execute_keyboard_action(key_code: i32, state: KeyState) {
             INPUT {
                 type_: INPUT_KEYBOARD,
                 u: unsafe {
-                    std::mem::transmute_copy(&KEYBDINPUT {
+                    let mut keybd_input: INPUT_u = std::mem::zeroed();
+                    *keybd_input.ki_mut() = KEYBDINPUT {
                         wVk: key_code as u16,
                         dwExtraInfo: 0,
                         wScan: 0,
                         time: 0,
                         dwFlags: 0,
-                    })
+                    };
+                    keybd_input
                 },
             },
             INPUT {
                 type_: INPUT_KEYBOARD,
                 u: unsafe {
-                    std::mem::transmute_copy(&KEYBDINPUT {
+                    let mut keybd_input: INPUT_u = std::mem::zeroed();
+                    *keybd_input.ki_mut() = KEYBDINPUT {
                         wVk: key_code as u16,
                         dwExtraInfo: 0,
                         wScan: 0,
                         time: 0,
                         dwFlags: KEYEVENTF_KEYUP,
-                    })
+                    };
+                    keybd_input
                 },
             },
         ];

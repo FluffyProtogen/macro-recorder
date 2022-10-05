@@ -5,10 +5,16 @@ use crate::{
 };
 use std::cell::RefCell;
 
-use eframe::egui::*;
-use winapi::shared::winerror::ERROR_SINGLE_INSTANCE_APP;
-
 use super::ModifyCommandWindow;
+use crate::gui::PIXELS_PER_POINT;
+use eframe::egui::*;
+use winapi::{
+    shared::winerror::ERROR_SINGLE_INSTANCE_APP,
+    um::{
+        propidl::PID_MAX_READONLY,
+        winuser::{GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN},
+    },
+};
 
 const CAPTURE_COLOR: Color32 = Color32::from_rgba_premultiplied(50, 50, 50, 0);
 const INVALID_CAPTURE_COLOR: Color32 = Color32::from_rgba_premultiplied(50, 00, 00, 0);
@@ -71,6 +77,186 @@ impl WaitForImageModifyCommandWindow {
     fn save(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {}
 
     fn cancel(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {}
+
+    fn capture(
+        data: &mut WaitForImageModifyCommandWindowData,
+        frame: &mut eframe::Frame,
+        recorder: &mut Recorder,
+        capturing_screenshot: bool,
+    ) {
+        data.capturing = true;
+        data.capturing_screenshot = capturing_screenshot;
+        frame.set_decorations(false);
+        frame.set_window_pos(pos2(-1.0, 0.0)); // offset by 1 so windows doesn't stop rendering everything behind the window lol
+
+        let (width, height) = unsafe {
+            (
+                GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                GetSystemMetrics(SM_CYVIRTUALSCREEN),
+            )
+        };
+
+        let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
+
+        frame.set_window_size(vec2(
+            (width as f32 / pixels_per_point) + 1.0,
+            height as f32 / pixels_per_point,
+        )); // add 1 to it to compensate
+
+        recorder.transparent = true;
+        data.capture_start = None;
+        data.capture_end = None;
+    }
+
+    fn draw_capturing_window(
+        &self,
+        ui: &mut Ui,
+        frame: &mut eframe::Frame,
+        recorder: &mut Recorder,
+        ctx: &Context,
+    ) {
+        //make x -1 but make window 1 pixel longer and offest the mouse capture coordinates by 1
+
+        let screen_size = frame.info().window_info.size;
+
+        let data = &mut self.data.borrow_mut();
+
+        let pointer = ui.input().pointer.clone(); // clone it to avoid a dead lock
+
+        if let (true, Some(pos)) = (pointer.primary_clicked(), pointer.hover_pos()) {
+            data.capture_start = Some(pos);
+        } else if data.capture_start.is_none() {
+            ui.painter().rect_filled(
+                Rect::from_two_pos(
+                    Pos2::ZERO,
+                    Pos2 {
+                        x: frame.info().window_info.size.x,
+                        y: frame.info().window_info.size.x,
+                    },
+                ),
+                Rounding::none(),
+                CAPTURE_COLOR,
+            );
+        }
+
+        if let Some(initial_pos) = data.capture_start {
+            if let (Some(current_pos), true) = (pointer.hover_pos(), pointer.primary_down()) {
+                data.capture_end = Some(current_pos);
+
+                let capture_color = if data.capturing_screenshot {
+                    CAPTURE_COLOR
+                } else {
+                    let screenshot_size = data.screenshot_texture.as_ref().unwrap().size_vec2();
+                    let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
+                    if (initial_pos.x - current_pos.x).abs() * pixels_per_point > screenshot_size.x
+                        && (initial_pos.y - current_pos.y).abs() * pixels_per_point
+                            > screenshot_size.y
+                    {
+                        CAPTURE_COLOR
+                    } else {
+                        INVALID_CAPTURE_COLOR
+                    }
+                };
+
+                if initial_pos.y == current_pos.y {
+                    ui.painter().rect_filled(
+                        Rect::from_two_pos(
+                            Pos2::ZERO,
+                            Pos2 {
+                                x: frame.info().window_info.size.x,
+                                y: frame.info().window_info.size.x,
+                            },
+                        ),
+                        Rounding::none(),
+                        capture_color,
+                    );
+                } else {
+                    ui.painter().rect_filled(
+                        Rect::from_x_y_ranges(
+                            0.0..=lesser(initial_pos.x, current_pos.x),
+                            lesser(initial_pos.y, current_pos.y)
+                                ..=greater(initial_pos.y, current_pos.y),
+                        ),
+                        Rounding::none(),
+                        capture_color,
+                    );
+
+                    ui.painter().rect_filled(
+                        Rect::from_x_y_ranges(
+                            greater(initial_pos.x, current_pos.x)..=screen_size.x,
+                            lesser(initial_pos.y, current_pos.y)
+                                ..=greater(initial_pos.y, current_pos.y),
+                        ),
+                        Rounding::none(),
+                        capture_color,
+                    );
+
+                    ui.painter().rect_filled(
+                        Rect::from_x_y_ranges(
+                            0.0..=screen_size.x,
+                            0.0..=lesser(initial_pos.y, current_pos.y),
+                        ),
+                        Rounding::none(),
+                        capture_color,
+                    );
+
+                    ui.painter().rect_filled(
+                        Rect::from_x_y_ranges(
+                            0.0..=screen_size.x,
+                            greater(initial_pos.y, current_pos.y)..=screen_size.y,
+                        ),
+                        Rounding::none(),
+                        capture_color,
+                    );
+                }
+            } else {
+                data.capturing = false;
+                frame.set_decorations(true);
+                frame.set_fullscreen(false);
+                recorder.transparent = false;
+
+                let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
+
+                data.capture_start = Some(pos2(
+                    ((data.capture_start.unwrap().x - 1.0) * pixels_per_point).round(),
+                    ((data.capture_start.unwrap().y - 1.0) * pixels_per_point).round(),
+                ));
+
+                data.capture_end = Some(pos2(
+                    ((data.capture_end.unwrap().x - 1.0) * pixels_per_point).round(),
+                    ((data.capture_end.unwrap().y - 1.0) * pixels_per_point).round(),
+                ));
+
+                let capture_start = data.capture_start.unwrap();
+                let capture_end = data.capture_end.unwrap();
+
+                if (capture_start.x - capture_end.x).abs() as i32 != 0
+                    && (capture_start.y - capture_end.y).abs() as i32 != 0
+                {
+                    if data.capturing_screenshot {
+                        let screenshot = screenshot(capture_start, capture_end);
+                        data.screenshot_texture = Some(ctx.load_texture(
+                            "Screenshot",
+                            screenshot_to_color_image(screenshot.clone()),
+                            TextureFilter::Linear,
+                        ));
+                        data.screenshot_raw = Some(screenshot);
+                    }
+
+                    data.search_location_text_edit_texts = Some((
+                        (
+                            lesser(capture_start.x, capture_end.x).to_string(),
+                            greater(capture_start.x, capture_end.x).to_string(),
+                        ),
+                        (
+                            (capture_start.x - capture_end.x).abs().to_string(),
+                            (capture_start.y - capture_end.y).abs().to_string(),
+                        ),
+                    ));
+                }
+            }
+        }
+    }
 }
 
 impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
@@ -83,131 +269,7 @@ impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
         frame: &mut eframe::Frame,
     ) {
         if self.data.borrow().capturing {
-            let screen_size = frame.info().window_info.size;
-
-            let data = &mut self.data.borrow_mut();
-
-            let pointer = ui.input().pointer.clone(); // clone it to avoid a dead lock
-
-            if let (true, Some(pos)) = (pointer.primary_clicked(), pointer.hover_pos()) {
-                data.capture_start = Some(pos);
-            } else if data.capture_start.is_none() {
-                ui.painter().rect_filled(
-                    Rect::from_two_pos(
-                        Pos2::ZERO,
-                        Pos2 {
-                            x: frame.info().window_info.size.x,
-                            y: frame.info().window_info.size.x,
-                        },
-                    ),
-                    Rounding::none(),
-                    CAPTURE_COLOR,
-                );
-            }
-
-            if let Some(initial_pos) = data.capture_start {
-                if let (Some(current_pos), true) = (pointer.hover_pos(), pointer.primary_down()) {
-                    data.capture_end = Some(current_pos);
-
-                    let capture_color = if data.capturing_screenshot {
-                        CAPTURE_COLOR
-                    } else {
-                        let screenshot_size = data.screenshot_texture.as_ref().unwrap().size_vec2();
-                        if (initial_pos.x - current_pos.x).abs() > screenshot_size.x
-                            && (initial_pos.y - current_pos.y).abs() > screenshot_size.y
-                        {
-                            CAPTURE_COLOR
-                        } else {
-                            INVALID_CAPTURE_COLOR
-                        }
-                    };
-
-                    if initial_pos.y == current_pos.y {
-                        ui.painter().rect_filled(
-                            Rect::from_two_pos(
-                                Pos2::ZERO,
-                                Pos2 {
-                                    x: frame.info().window_info.size.x,
-                                    y: frame.info().window_info.size.x,
-                                },
-                            ),
-                            Rounding::none(),
-                            capture_color,
-                        );
-                    } else {
-                        ui.painter().rect_filled(
-                            Rect::from_x_y_ranges(
-                                0.0..=lesser(initial_pos.x, current_pos.x),
-                                lesser(initial_pos.y, current_pos.y)
-                                    ..=greater(initial_pos.y, current_pos.y),
-                            ),
-                            Rounding::none(),
-                            capture_color,
-                        );
-
-                        ui.painter().rect_filled(
-                            Rect::from_x_y_ranges(
-                                greater(initial_pos.x, current_pos.x)..=screen_size.x,
-                                lesser(initial_pos.y, current_pos.y)
-                                    ..=greater(initial_pos.y, current_pos.y),
-                            ),
-                            Rounding::none(),
-                            capture_color,
-                        );
-
-                        ui.painter().rect_filled(
-                            Rect::from_x_y_ranges(
-                                0.0..=screen_size.x,
-                                0.0..=lesser(initial_pos.y, current_pos.y),
-                            ),
-                            Rounding::none(),
-                            capture_color,
-                        );
-
-                        ui.painter().rect_filled(
-                            Rect::from_x_y_ranges(
-                                0.0..=screen_size.x,
-                                greater(initial_pos.y, current_pos.y)..=screen_size.y,
-                            ),
-                            Rounding::none(),
-                            capture_color,
-                        );
-                    }
-                } else {
-                    data.capturing = false;
-                    frame.set_decorations(true);
-                    frame.set_fullscreen(false);
-                    recorder.transparent = false;
-
-                    let capture_start = data.capture_start.unwrap();
-                    let capture_end = data.capture_end.unwrap();
-
-                    if (capture_start.x - capture_end.x).abs() as i32 != 0
-                        && (capture_start.y - capture_end.y).abs() as i32 != 0
-                    {
-                        if data.capturing_screenshot {
-                            let screenshot = screenshot(capture_start, capture_end);
-                            data.screenshot_texture = Some(ctx.load_texture(
-                                "Screenshot",
-                                screenshot_to_color_image(screenshot.clone()),
-                                TextureFilter::Linear,
-                            ));
-                            data.screenshot_raw = Some(screenshot);
-                        }
-
-                        data.search_location_text_edit_texts = Some((
-                            (
-                                lesser(capture_start.x, capture_end.x).to_string(),
-                                greater(capture_start.x, capture_end.x).to_string(),
-                            ),
-                            (
-                                (capture_start.x - capture_end.x).abs().to_string(),
-                                (capture_start.y - capture_end.y).abs().to_string(),
-                            ),
-                        ));
-                    }
-                }
-            }
+            self.draw_capturing_window(ui, frame, recorder, ctx);
         } else {
             let window = self.setup(drag_bounds);
             let data = &mut self.data.borrow_mut();
@@ -252,13 +314,7 @@ impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
                     ui.allocate_space(vec2(45.0, 0.0));
 
                     if ui.button("Select Image").clicked() {
-                        data.capturing = true;
-                        data.capturing_screenshot = true;
-                        frame.set_decorations(false);
-                        frame.set_fullscreen(true);
-                        recorder.transparent = true;
-                        data.capture_start = None;
-                        data.capture_end = None;
+                        Self::capture(data, frame, recorder, true);
                     }
                 });
 
@@ -350,13 +406,7 @@ impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
                             ui.allocate_space(vec2(15.0, 0.0));
 
                             if ui.button("Select Area").clicked() {
-                                data.capturing = true;
-                                data.capturing_screenshot = false;
-                                frame.set_decorations(false);
-                                frame.set_fullscreen(true);
-                                recorder.transparent = true;
-                                data.capture_start = None;
-                                data.capture_end = None;
+                                Self::capture(data, frame, recorder, false);
                             }
                         });
 

@@ -1,6 +1,9 @@
 use eframe::{egui::*, *};
+use once_cell::sync::OnceCell;
 
 use std::{path::*, rc::Rc};
+
+pub static PIXELS_PER_POINT: OnceCell<f32> = OnceCell::new();
 
 use crate::{
     actions::{Action, KeyState, MouseActionKind, Point},
@@ -558,6 +561,8 @@ impl App for Recorder {
     }
 
     fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+        PIXELS_PER_POINT.set(ctx.pixels_per_point()).ok();
+
         if let Some(action) = &self.next_play_record_action {
             if *action == RecordPlayAction::Play {
                 play_back_actions(&self.action_list, &self.settings);

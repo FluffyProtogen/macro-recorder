@@ -47,6 +47,8 @@ pub fn screenshot(corner1: Pos2, corner2: Pos2) -> RawScreenshot {
         let left_x = lesser(corner1.x, corner2.x) as i32;
         let top_y = lesser(corner1.y, corner2.y) as i32;
 
+        println!("{} {}", left_x, top_y);
+
         let width = (corner1.x - corner2.x).abs() as i32;
         let height = (corner1.y - corner2.y).abs() as i32;
 

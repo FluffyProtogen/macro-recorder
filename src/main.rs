@@ -1,8 +1,8 @@
+//#![windows_subsystem = "windows"]
 use std::ffi::c_void;
 
-//#![windows_subsystem = "windows"]
 use eframe::*;
-use egui::vec2;
+use egui::{pos2, vec2};
 use image::{ImageBuffer, ImageFormat, Rgba};
 use macro_recorder::{images::image_capture_overlay, *};
 use winapi::um::{wingdi::*, winuser::*};
@@ -14,7 +14,7 @@ use winit::{
 fn main() {
     let mut options = NativeOptions::default();
     options.initial_window_size = Some(vec2(1440.0, 1040.0));
-    options.min_window_size = Some(vec2(800.0, 800.0));
+    options.min_window_size = Some(vec2(800.0, 650.0));
     options.transparent = true;
     run_native(
         "Fluffy Macro Recorder",
