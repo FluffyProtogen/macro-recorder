@@ -5,11 +5,9 @@ use imageproc::template_matching::{find_extremes, MatchTemplateMethod};
 use rayon::{prelude::ParallelIterator, slice::ParallelSliceMut};
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeStruct;
+use std::ffi::c_void;
 use std::ptr::null_mut;
-use std::{ffi::c_void, path::Path};
 use winapi::um::{wingdi::*, winuser::*};
-
-pub mod image_capture_overlay;
 
 const RESIZE_FACTOR: u32 = 5;
 

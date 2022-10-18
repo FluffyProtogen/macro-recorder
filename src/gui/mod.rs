@@ -11,28 +11,25 @@ pub mod top_panel;
 
 use crate::{
     actions::{Action, KeyState, MouseActionKind, Point},
-    load_from_file,
-    modify_command_window::ModifyCommandWindow,
-    play_back_actions, play_key_pressed,
+    load_from_file, play_back_actions, play_key_pressed,
     right_click_dialog::ActionRightClickDialog,
     save_macro,
     settings::{self, Settings},
     settings_window::SettingsWindow,
-    warning_window::{DefaultErrorWindow, RecordConfirmationWindow, WarningWindow},
+    warning_window::{DefaultErrorWindow, RecordConfirmationWindow},
+    ModalWindow,
 };
 
 pub struct Recorder {
     pub selected_row: Option<usize>,
     pub action_list: Vec<Action>,
     pub right_click_dialog: Option<Rc<ActionRightClickDialog>>,
-    pub modify_command_window: Option<Rc<Box<dyn ModifyCommandWindow>>>,
     pub next_play_record_action: Option<RecordPlayAction>,
-    pub settings_window: Option<Rc<SettingsWindow>>,
     pub settings: Settings,
-    pub warning_window: Option<Rc<Box<dyn WarningWindow>>>,
     pub current_macro_path: Option<PathBuf>,
     pub transparent: bool,
     pub scroll_to_me_row: Option<usize>,
+    pub modal: Option<Rc<dyn ModalWindow>>,
 }
 
 const TOP_PANEL_HEIGHT: f32 = 65.0;
@@ -80,7 +77,7 @@ impl Recorder {
             let create_settings_file_result = settings::create_settings_file();
 
             match create_settings_file_result {
-                Ok(()) => Some(Rc::new(DefaultErrorWindow::new(
+                Ok(()) => Some(DefaultErrorWindow::new(
                     "Settings Not Found".into(),
                     vec![
                         "Settings file not found.".into(),
@@ -90,15 +87,15 @@ impl Recorder {
                             settings::SETTINGS_FILE_NAME
                         ),
                     ],
-                ))),
-                Err(error) => Some(Rc::new(DefaultErrorWindow::new(
+                )),
+                Err(error) => Some(DefaultErrorWindow::new(
                     "Settings Error".into(),
                     vec![
                         "Settings file not found.".into(),
                         "Error attempting to create settings file:".into(),
                         error.to_string(),
                     ],
-                ))),
+                )),
             }
         } else {
             None
@@ -108,26 +105,24 @@ impl Recorder {
             selected_row: None,
             action_list,
             right_click_dialog: None,
-            modify_command_window: None,
             next_play_record_action: None,
-            settings_window: None,
             settings: settings.unwrap_or(Default::default()),
-            warning_window,
             current_macro_path: None,
             transparent: false,
             scroll_to_me_row: None,
+            modal: warning_window,
         }
     }
 
-    fn create_action_window(&mut self, action: Action, screen_dimensions: Vec2, ctx: &Context) {
-        self.modify_command_window = Some(Rc::new(action.get_modify_command_window(
+    pub fn create_action_window(&mut self, action: Action, screen_dimensions: Vec2, ctx: &Context) {
+        self.modal = Some(action.get_modify_command_window(
             true,
             pos2(
                 screen_dimensions.x / 2.0 - SIDE_PANEL_WIDTH,
                 screen_dimensions.y / 2.0 - TOP_PANEL_HEIGHT,
             ),
             ctx,
-        )));
+        ));
 
         self.create_action(action);
     }
@@ -229,13 +224,13 @@ impl Recorder {
             }
 
             if response.double_clicked() {
-                self.modify_command_window = Some(Rc::new(
+                self.modal = Some(
                     self.action_list[self.selected_row.unwrap()].get_modify_command_window(
                         false,
                         response.hover_pos().unwrap(),
                         ctx,
                     ),
-                ));
+                );
             }
 
             if row == row_range.clone().start {
@@ -291,8 +286,8 @@ impl Recorder {
             }
         }
 
-        if let (true, Some(row)) = (ui.input().key_pressed(Key::Enter), self.selected_row) {
-            self.modify_command_window = Some(Rc::new(
+        if let (true, Some(..)) = (ui.input().key_pressed(Key::Enter), self.selected_row) {
+            self.modal = Some(
                 self.action_list[self.selected_row.unwrap()].get_modify_command_window(
                     false,
                     pos2(
@@ -301,7 +296,7 @@ impl Recorder {
                     ),
                     ctx,
                 ),
-            ));
+            );
             self.right_click_dialog = None;
         }
 
@@ -327,19 +322,17 @@ impl Recorder {
     }
 
     fn are_any_modals_open(&self) -> bool {
-        self.modify_command_window.is_some()
-            || self.settings_window.is_some()
-            || self.warning_window.is_some()
+        self.modal.is_some()
     }
 
     fn try_save(&mut self, path: PathBuf, frame: &mut eframe::Frame) {
         let save_result = save_macro(&path, &self.action_list);
 
         if let Err(error) = save_result {
-            self.warning_window = Some(Rc::new(DefaultErrorWindow::new(
+            self.modal = Some(DefaultErrorWindow::new(
                 "Save Error".into(),
                 vec!["Error saving macro:".into(), error.to_string()],
-            )))
+            ))
         } else {
             self.current_macro_path = Some(path);
             self.update_title(frame);

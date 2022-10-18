@@ -1,3 +1,5 @@
+use crate::action_list_category::{ActionListCategory, ActionListWindow};
+
 use super::*;
 
 impl Recorder {
@@ -76,28 +78,9 @@ impl Recorder {
 
                     ui.allocate_space(vec2(0.0, 30.0));
 
-                    ui.menu_button("Wait", |ui| {
-                        ui.add_space(3.0);
-                        ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                            ui.add_space(5.0);
-                            if ui.button("Delay").clicked() {
-                                self.create_action_window(Action::Delay(0), screen_dimensions, ctx);
-                            }
-                        });
-
-                        ui.allocate_space(vec2(0.0, 10.0));
-                        ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                            ui.add_space(5.0);
-                            if ui.button("Wait for image").clicked() {
-                                self.create_action_window(
-                                    Action::WaitForImage(Default::default()),
-                                    screen_dimensions,
-                                    ctx,
-                                );
-                            }
-                        });
-                        ui.add_space(3.0);
-                    });
+                    if ui.button("Wait").clicked() {
+                        self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::Wait)));
+                    }
                 });
             });
     }

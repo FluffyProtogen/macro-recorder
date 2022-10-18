@@ -1,21 +1,11 @@
+use std::rc::Rc;
+
 use egui::*;
 
 use crate::{
     gui::{RecordPlayAction, Recorder},
-    recorder, settings,
+    ModalWindow,
 };
-
-pub trait WarningWindow {
-    fn update(
-        &self,
-        recorder: &mut Recorder,
-        ctx: &Context,
-        ui: &mut Ui,
-        drag_bounds: Rect,
-        frame: &mut eframe::Frame,
-    ) {
-    }
-}
 
 pub struct DefaultErrorWindow {
     title: String,
@@ -23,19 +13,19 @@ pub struct DefaultErrorWindow {
 }
 
 impl DefaultErrorWindow {
-    pub fn new(title: String, lines: Vec<String>) -> Box<dyn WarningWindow> {
-        Box::new(Self { title, lines })
+    pub fn new(title: String, lines: Vec<String>) -> Rc<dyn ModalWindow> {
+        Rc::new(Self { title, lines })
     }
 }
 
-impl WarningWindow for DefaultErrorWindow {
+impl ModalWindow for DefaultErrorWindow {
     fn update(
         &self,
         recorder: &mut Recorder,
         ctx: &Context,
-        ui: &mut Ui,
+        _ui: &mut Ui,
         drag_bounds: Rect,
-        frame: &mut eframe::Frame,
+        _frame: &mut eframe::Frame,
     ) {
         let window = Window::new(&self.title)
             .collapsible(false)
@@ -53,7 +43,7 @@ impl WarningWindow for DefaultErrorWindow {
             ui.allocate_space(vec2(0.0, 25.0));
 
             if ui.button("Ok").clicked() {
-                recorder.warning_window = None;
+                recorder.modal = None;
             }
         });
     }
@@ -61,12 +51,12 @@ impl WarningWindow for DefaultErrorWindow {
 
 pub struct RecordConfirmationWindow;
 
-impl WarningWindow for RecordConfirmationWindow {
+impl ModalWindow for RecordConfirmationWindow {
     fn update(
         &self,
         recorder: &mut Recorder,
         ctx: &Context,
-        ui: &mut Ui,
+        _ui: &mut Ui,
         drag_bounds: Rect,
         frame: &mut eframe::Frame,
     ) {
@@ -87,13 +77,13 @@ impl WarningWindow for RecordConfirmationWindow {
 
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                 if ui.button("Cancel").clicked() {
-                    recorder.warning_window = None;
+                    recorder.modal = None;
                 }
 
                 ui.add_space(25.0);
 
                 if ui.button("Record").clicked() {
-                    recorder.warning_window = None;
+                    recorder.modal = None;
                     recorder.next_play_record_action = Some(RecordPlayAction::Record);
                     frame.set_visible(false);
                     frame.set_fullscreen(false);
@@ -104,7 +94,7 @@ impl WarningWindow for RecordConfirmationWindow {
 }
 
 impl RecordConfirmationWindow {
-    pub fn new() -> Box<dyn WarningWindow> {
-        Box::new(Self {})
+    pub fn new() -> Rc<dyn ModalWindow> {
+        Rc::new(Self {})
     }
 }

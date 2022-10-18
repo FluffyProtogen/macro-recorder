@@ -1,13 +1,8 @@
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
 
 use egui::*;
 
-use crate::{
-    gui::Recorder,
-    recorder,
-    settings::{self, Settings},
-    warning_window::DefaultErrorWindow,
-};
+use crate::{gui::Recorder, settings, warning_window::DefaultErrorWindow, ModalWindow, Settings};
 
 pub struct SettingsWindow {
     data: RefCell<SettingsWindowData>,
@@ -24,6 +19,14 @@ impl SettingsWindow {
             }),
         }
     }
+
+    fn setup(&self, _recorder: &mut Recorder, drag_bounds: Rect) -> Window {
+        Window::new("Settings")
+            .collapsible(false)
+            .resizable(false)
+            .drag_bounds(drag_bounds)
+            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+    }
 }
 
 struct SettingsWindowData {
@@ -31,20 +34,15 @@ struct SettingsWindowData {
     replay_textedit_text: String,
 }
 
-impl SettingsWindow {
-    fn setup(&self, recorder: &mut Recorder, drag_bounds: Rect) -> Window {
-        let mut window = Window::new("Settings")
-            .collapsible(false)
-            .resizable(false)
-            .drag_bounds(drag_bounds)
-            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0));
-
-        let mut data = self.data.borrow_mut();
-
-        window
-    }
-
-    pub fn update(&self, recorder: &mut Recorder, ctx: &Context, ui: &mut Ui, drag_bounds: Rect) {
+impl ModalWindow for SettingsWindow {
+    fn update(
+        &self,
+        recorder: &mut Recorder,
+        ctx: &Context,
+        _ui: &mut Ui,
+        drag_bounds: Rect,
+        _frame: &mut eframe::Frame,
+    ) {
         let window = self.setup(recorder, drag_bounds);
 
         window.show(ctx, |ui| {
@@ -89,26 +87,26 @@ impl SettingsWindow {
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                 ui.add_space(35.0);
                 if ui.button("Cancel").clicked() {
-                    recorder.settings_window = None;
+                    recorder.modal = None;
                 }
                 ui.add_space(35.0);
                 if ui.button("Save").clicked() {
                     if let Ok(repeats) = data.replay_textedit_text.parse::<u32>() {
                         data.temp_settings.repeat_times = repeats;
                         recorder.settings = data.temp_settings.clone();
-                        recorder.settings_window = None;
+                        recorder.modal = None;
 
                         let save_result = settings::save_settings_file(&data.temp_settings);
 
                         if let Err(error) = save_result {
-                            recorder.warning_window = Some(Rc::new(DefaultErrorWindow::new(
+                            recorder.modal = Some(DefaultErrorWindow::new(
                                 "Settings Error".into(),
                                 vec![
                                     "Error saving settings to file:".into(),
                                     error.to_string(),
                                     "The macro recorder will still function, but the settings will not be saved at next startup.".into()
                                 ],
-                            )));
+                            ));
                         }
                     }
                 }

@@ -1,4 +1,3 @@
-use egui::Image;
 use serde::*;
 
 use crate::{images::RawScreenshotPair, keycodes_to_string::key_code_to_string};
@@ -102,7 +101,19 @@ impl Action {
                 format!("Key {}", key_code_to_string(*key_code)),
                 format!("{:?}", state),
             ],
-            Self::WaitForImage(image_info) => ["Find Image".into(), "IMAGE".into(), "IMAGE".into()],
+            Self::WaitForImage(image_info) => [
+                "Wait For Image".into(),
+                if image_info.check_if_not_found {
+                    "Wait until not found".into()
+                } else {
+                    "Wait until found".into()
+                },
+                if image_info.move_mouse_if_found {
+                    "Move mouse to center if found".into()
+                } else {
+                    "".into()
+                },
+            ],
         }
     }
 }

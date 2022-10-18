@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 
-use super::ModifyCommandWindow;
 use crate::{
     actions::{self, Action, MouseActionButton, MouseActionButtonState, MouseActionKind, Point},
     gui::Recorder,
+    ModalWindow,
 };
 use eframe::egui::*;
 use std::fmt::*;
@@ -47,7 +47,7 @@ impl MouseModifyCommandWindow {
         };
 
         let scroll_text_edit_text =
-            if let actions::MouseActionKind::Wheel(amount, _) = mouse_action_kind {
+            if let actions::MouseActionKind::Wheel(amount, ..) = mouse_action_kind {
                 (amount / 120).to_string()
             } else {
                 String::new()
@@ -153,7 +153,7 @@ impl Display for MouseComboBoxType {
     }
 }
 
-impl ModifyCommandWindow for MouseModifyCommandWindow {
+impl ModalWindow for MouseModifyCommandWindow {
     fn update(
         &self,
         recorder: &mut Recorder,
@@ -330,12 +330,12 @@ impl MouseModifyCommandWindow {
                             data.mouse_position_text_edit_text.0.parse(),
                             data.mouse_position_text_edit_text.1.parse(),
                         ) {
-                            recorder.modify_command_window = None;
+                            recorder.modal = None;
                             recorder.action_list[recorder.selected_row.unwrap()] =
                                 Action::Mouse(MouseActionKind::Wheel(scroll, Some(Point { x, y })));
                         }
                     } else {
-                        recorder.modify_command_window = None;
+                        recorder.modal = None;
                         recorder.action_list[recorder.selected_row.unwrap()] =
                             Action::Mouse(MouseActionKind::Wheel(scroll, None));
                     }
@@ -346,7 +346,7 @@ impl MouseModifyCommandWindow {
                     data.mouse_position_text_edit_text.0.parse(),
                     data.mouse_position_text_edit_text.1.parse(),
                 ) {
-                    recorder.modify_command_window = None;
+                    recorder.modal = None;
                     recorder.action_list[recorder.selected_row.unwrap()] =
                         Action::Mouse(MouseActionKind::Moved(Point { x, y }));
                 }
@@ -383,7 +383,7 @@ impl MouseModifyCommandWindow {
                         data.mouse_position_text_edit_text.0.parse(),
                         data.mouse_position_text_edit_text.1.parse(),
                     ) {
-                        recorder.modify_command_window = None;
+                        recorder.modal = None;
                         recorder.action_list[recorder.selected_row.unwrap()] =
                             Action::Mouse(MouseActionKind::Button(MouseActionButton {
                                 point: Some(Point { x, y }),
@@ -392,7 +392,7 @@ impl MouseModifyCommandWindow {
                             }));
                     }
                 } else {
-                    recorder.modify_command_window = None;
+                    recorder.modal = None;
                     recorder.action_list[recorder.selected_row.unwrap()] =
                         Action::Mouse(MouseActionKind::Button(MouseActionButton {
                             point: None,
@@ -405,7 +405,7 @@ impl MouseModifyCommandWindow {
     }
 
     fn cancel(&self, data: &MouseModifyCommandWindowData, recorder: &mut Recorder) {
-        recorder.modify_command_window = None;
+        recorder.modal = None;
         if data.creating_command {
             recorder.action_list.remove(recorder.selected_row.unwrap());
             recorder.selected_row = None;

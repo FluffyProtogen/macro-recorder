@@ -74,7 +74,7 @@ fn combine_into_action_list(
     let mut actions = vec![];
 
     if (start_time - initial_start_time) > 0 {
-        actions.push(Delay((start_time - initial_start_time)));
+        actions.push(Delay(start_time - initial_start_time));
     }
 
     loop {

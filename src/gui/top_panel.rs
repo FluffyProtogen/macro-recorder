@@ -71,7 +71,7 @@ impl Recorder {
                         self.right_click_dialog = None;
 
                         if self.action_list.len() > 0 {
-                            self.warning_window = Some(Rc::new(RecordConfirmationWindow::new()));
+                            self.modal = Some(RecordConfirmationWindow::new());
                         } else {
                             self.next_play_record_action = Some(RecordPlayAction::Record);
                             frame.set_visible(false);
@@ -83,8 +83,7 @@ impl Recorder {
 
                     if ui.button("Settings").clicked() {
                         self.right_click_dialog = None;
-                        self.settings_window =
-                            Some(Rc::new(SettingsWindow::new(self.settings.clone())));
+                        self.modal = Some(Rc::new(SettingsWindow::new(self.settings.clone())));
                     }
 
                     ui.allocate_space(vec2(30.0, 0.0));
@@ -105,10 +104,10 @@ impl Recorder {
                                     self.update_title(frame);
                                 }
                                 Err(error) => {
-                                    self.warning_window = Some(Rc::new(DefaultErrorWindow::new(
+                                    self.modal = Some(DefaultErrorWindow::new(
                                         "Load Error".into(),
                                         vec!["Error loading macro:".into(), error.to_string()],
-                                    )))
+                                    ))
                                 }
                             }
                         }

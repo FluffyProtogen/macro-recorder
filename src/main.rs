@@ -1,15 +1,7 @@
 //#![windows_subsystem = "windows"]
-use std::ffi::c_void;
-
 use eframe::*;
-use egui::{pos2, vec2};
-use image::{ImageBuffer, ImageFormat, Rgba};
-use macro_recorder::{images::image_capture_overlay, *};
-use winapi::um::{wingdi::*, winuser::*};
-use winit::{
-    event_loop::{ControlFlow, EventLoop},
-    platform::run_return::EventLoopExtRunReturn,
-};
+use egui::vec2; 
+use macro_recorder::*;
 
 fn main() {
     let mut options = NativeOptions::default();

@@ -4,10 +4,9 @@ use crate::{
     actions::{Action, KeyState},
     gui::Recorder,
     keycodes_to_string::{key_code_to_string, ALLOWED_KEYBOARD_KEYS},
+    ModalWindow,
 };
 use eframe::egui::*;
-
-use super::ModifyCommandWindow;
 
 pub struct KeyboardModifyCommandWindow {
     data: RefCell<KeyboardModifyCommandWindowData>,
@@ -53,7 +52,7 @@ impl KeyboardModifyCommandWindow {
     }
 
     fn cancel(&self, data: &KeyboardModifyCommandWindowData, recorder: &mut Recorder) {
-        recorder.modify_command_window = None;
+        recorder.modal = None;
         if data.creating_command {
             recorder.action_list.remove(recorder.selected_row.unwrap());
             recorder.selected_row = None;
@@ -61,7 +60,7 @@ impl KeyboardModifyCommandWindow {
     }
 }
 
-impl ModifyCommandWindow for KeyboardModifyCommandWindow {
+impl ModalWindow for KeyboardModifyCommandWindow {
     fn update(
         &self,
         recorder: &mut Recorder,
@@ -152,7 +151,7 @@ impl ModifyCommandWindow for KeyboardModifyCommandWindow {
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                 ui.add_space(35.0);
                 if ui.button("Cancel").clicked() {
-                    recorder.modify_command_window = None;
+                    recorder.modal = None;
                     if data.creating_command {
                         recorder.action_list.remove(recorder.selected_row.unwrap());
                         recorder.selected_row = None;
@@ -170,7 +169,7 @@ impl ModifyCommandWindow for KeyboardModifyCommandWindow {
 impl KeyboardModifyCommandWindow {
     fn save(&self, data: &KeyboardModifyCommandWindowData, recorder: &mut Recorder) {
         if let Some(key_code) = data.key_code {
-            recorder.modify_command_window = None;
+            recorder.modal = None;
             recorder.action_list[recorder.selected_row.unwrap()] =
                 Action::Keyboard(key_code, data.key_state);
         }

@@ -1,3 +1,4 @@
+pub mod action_list_category;
 pub mod actions;
 pub mod gui;
 pub mod images;
@@ -10,14 +11,28 @@ pub mod settings_window;
 pub mod warning_window;
 use actions::*;
 use chrono::{DateTime, Utc};
+use egui::{Context, Rect, Ui};
+use gui::Recorder;
 use settings::Settings;
 use std::{
     error::Error,
     fs::{read_to_string, File},
     io::Write,
-    path::{Path, PathBuf},
+    path::Path,
     time::SystemTime,
 };
+
+pub trait ModalWindow {
+    fn update(
+        &self,
+        recorder: &mut Recorder,
+        ctx: &Context,
+        ui: &mut Ui,
+        screen_dimensions: Rect,
+        frame: &mut eframe::Frame,
+    );
+}
+
 use winapi::um::winuser::*;
 
 fn execute_mouse_action(action: &MouseActionButton) {

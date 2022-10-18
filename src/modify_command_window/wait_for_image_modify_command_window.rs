@@ -2,23 +2,17 @@ use crate::{
     actions::{Action, ImageInfo},
     gui::Recorder,
     images::{
-        find_image, screenshot, screenshot_to_color_image, GrayImageSerializable, RawScreenshot,
+        find_image, screenshot, screenshot_to_color_image, GrayImageSerializable,
         RawScreenshotPair, IMAGE_PANEL_IMAGE_SIZE,
     },
+    ModalWindow,
 };
 use std::cell::RefCell;
 
-use super::ModifyCommandWindow;
 use crate::gui::PIXELS_PER_POINT;
 use eframe::egui::*;
-use image::{DynamicImage, GrayImage, ImageBuffer, Luma};
-use winapi::{
-    shared::winerror::ERROR_SINGLE_INSTANCE_APP,
-    um::{
-        propidl::PID_MAX_READONLY,
-        winuser::{GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN},
-    },
-};
+use image::{DynamicImage, ImageBuffer};
+use winapi::um::winuser::{GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN};
 
 const CAPTURE_COLOR: Color32 = Color32::from_rgba_premultiplied(50, 50, 50, 0);
 const INVALID_CAPTURE_COLOR: Color32 = Color32::from_rgba_premultiplied(50, 00, 00, 0);
@@ -139,13 +133,13 @@ impl WaitForImageModifyCommandWindow {
                 image_similarity,
             };
 
-            recorder.modify_command_window = None;
+            recorder.modal = None;
             recorder.action_list[recorder.selected_row.unwrap()] = Action::WaitForImage(image_info);
         }
     }
 
     fn cancel(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {
-        recorder.modify_command_window = None;
+        recorder.modal = None;
         if data.creating_command {
             recorder.action_list.remove(recorder.selected_row.unwrap());
             recorder.selected_row = None;
@@ -354,7 +348,7 @@ impl WaitForImageModifyCommandWindow {
     }
 }
 
-impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
+impl ModalWindow for WaitForImageModifyCommandWindow {
     fn update(
         &self,
         recorder: &mut Recorder,

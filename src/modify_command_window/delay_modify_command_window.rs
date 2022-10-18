@@ -1,9 +1,7 @@
 use std::cell::RefCell;
 
-use crate::{actions::Action, gui::Recorder};
+use crate::{actions::Action, gui::Recorder, ModalWindow};
 use eframe::egui::*;
-
-use super::ModifyCommandWindow;
 
 pub struct DelayModifyCommandWindow {
     data: RefCell<DelayModifyCommandWindowData>,
@@ -46,13 +44,13 @@ impl DelayModifyCommandWindow {
 
     fn save(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
         if let Ok(delay) = data.text_edit_text.parse::<u32>() {
-            recorder.modify_command_window = None;
+            recorder.modal = None;
             recorder.action_list[recorder.selected_row.unwrap()] = Action::Delay(delay);
         }
     }
 
     fn cancel(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
-        recorder.modify_command_window = None;
+        recorder.modal = None;
         if data.creating_command {
             recorder.action_list.remove(recorder.selected_row.unwrap());
             recorder.selected_row = None;
@@ -60,7 +58,7 @@ impl DelayModifyCommandWindow {
     }
 }
 
-impl ModifyCommandWindow for DelayModifyCommandWindow {
+impl ModalWindow for DelayModifyCommandWindow {
     fn update(
         &self,
         recorder: &mut Recorder,

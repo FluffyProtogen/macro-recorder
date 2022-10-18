@@ -74,33 +74,8 @@ impl App for Recorder {
                     dialog.update(self, ctx, ui, screen_dimensions);
                 }
 
-                if let Some(window) = &self.modify_command_window.clone() {
-                    window.update(
-                        self,
-                        ctx,
-                        ui,
-                        Rect::from_x_y_ranges(
-                            SIDE_PANEL_WIDTH..=frame.info().window_info.size.x,
-                            TOP_PANEL_HEIGHT..=frame.info().window_info.size.y,
-                        ),
-                        frame,
-                    );
-                }
-
-                if let Some(settings_window) = &self.settings_window.clone() {
-                    settings_window.update(
-                        self,
-                        ctx,
-                        ui,
-                        Rect::from_x_y_ranges(
-                            SIDE_PANEL_WIDTH..=frame.info().window_info.size.x,
-                            TOP_PANEL_HEIGHT..=frame.info().window_info.size.y,
-                        ),
-                    );
-                }
-
-                if let Some(warning_window) = &self.warning_window.clone() {
-                    warning_window.update(
+                if let Some(modal) = self.modal.clone() {
+                    modal.update(
                         self,
                         ctx,
                         ui,
