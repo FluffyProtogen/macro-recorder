@@ -25,6 +25,7 @@ struct MouseModifyCommandWindowData {
     f2_previously_pressed: bool,
     f3_previously_pressed: bool,
     window_visible: bool,
+    enter_lock: bool,
 }
 
 impl MouseModifyCommandWindow {
@@ -63,6 +64,7 @@ impl MouseModifyCommandWindow {
                 f2_previously_pressed: capture_mouse_position_key_pressed(),
                 f3_previously_pressed: minimize_window_key_pressed(),
                 window_visible: true,
+                enter_lock: true,
             }),
         }
     }
@@ -165,8 +167,12 @@ impl ModifyCommandWindow for MouseModifyCommandWindow {
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
 
-            if ui.input().key_pressed(Key::Enter) {
-                self.save(data, recorder);
+            if ui.input().key_down(Key::Enter) {
+                if !data.enter_lock {
+                    self.save(data, recorder);
+                }
+            } else {
+                data.enter_lock = false;
             }
             if ui.input().key_pressed(Key::Escape) {
                 self.cancel(data, recorder);

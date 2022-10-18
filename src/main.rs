@@ -13,7 +13,7 @@ use winit::{
 
 fn main() {
     let mut options = NativeOptions::default();
-    options.initial_window_size = Some(vec2(1440.0, 1040.0));
+    options.initial_window_size = Some(vec2(800.0, 650.0));
     options.min_window_size = Some(vec2(800.0, 650.0));
     options.transparent = true;
     run_native(

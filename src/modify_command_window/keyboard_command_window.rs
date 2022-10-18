@@ -19,6 +19,7 @@ struct KeyboardModifyCommandWindowData {
     key_state: KeyState,
     key_code: Option<i32>,
     key_code_text_edit_text: String,
+    enter_lock: bool,
 }
 
 impl KeyboardModifyCommandWindow {
@@ -30,6 +31,7 @@ impl KeyboardModifyCommandWindow {
                 key_state,
                 key_code: Some(key_code),
                 key_code_text_edit_text: key_code.to_string(),
+                enter_lock: true,
             }),
         }
     }
@@ -73,8 +75,12 @@ impl ModifyCommandWindow for KeyboardModifyCommandWindow {
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
 
-            if ui.input().key_pressed(Key::Enter) {
-                self.save(data, recorder);
+            if ui.input().key_down(Key::Enter) {
+                if !data.enter_lock {
+                    self.save(data, recorder);
+                }
+            } else {
+                data.enter_lock = false;
             }
             if ui.input().key_pressed(Key::Escape) {
                 self.cancel(data, recorder);

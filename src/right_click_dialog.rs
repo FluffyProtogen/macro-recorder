@@ -40,10 +40,11 @@ impl ActionRightClickDialog {
             let select_all_response = button.ui(ui);
 
             if edit_response.clicked() {
-                recorder.modify_command_window = Some(Rc::new(
-                    recorder.action_list[recorder.selected_row.unwrap()]
-                        .get_modify_command_window(false, self.position),
-                ));
+                recorder.modify_command_window =
+                    Some(Rc::new(
+                        recorder.action_list[recorder.selected_row.unwrap()]
+                            .get_modify_command_window(false, self.position, ctx),
+                    ));
                 recorder.right_click_dialog = None;
             }
 

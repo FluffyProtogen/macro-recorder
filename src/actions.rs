@@ -1,6 +1,7 @@
+use egui::Image;
 use serde::*;
 
-use crate::keycodes_to_string::key_code_to_string;
+use crate::{images::RawScreenshotPair, keycodes_to_string::key_code_to_string};
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct Point {
     pub x: i32,
@@ -33,7 +34,7 @@ pub enum Action {
     Delay(u32),
     Mouse(MouseActionKind),
     Keyboard(i32, KeyState),
-    WaitForImage,
+    WaitForImage(ImageInfo),
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Debug)]
@@ -41,6 +42,29 @@ pub enum KeyState {
     Down,
     Up,
     Pressed,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ImageInfo {
+    pub screenshot_raw: Option<RawScreenshotPair>,
+    pub move_mouse_if_found: bool,
+    pub check_if_not_found: bool,
+    pub search_location_left_top: Option<(i32, i32)>,
+    pub search_location_width_height: Option<(i32, i32)>,
+    pub image_similarity: f32,
+}
+
+impl Default for ImageInfo {
+    fn default() -> Self {
+        Self {
+            screenshot_raw: None,
+            move_mouse_if_found: false,
+            check_if_not_found: false,
+            search_location_left_top: None,
+            search_location_width_height: None,
+            image_similarity: 0.0,
+        }
+    }
 }
 
 impl Action {
@@ -78,7 +102,7 @@ impl Action {
                 format!("Key {}", key_code_to_string(*key_code)),
                 format!("{:?}", state),
             ],
-            Self::WaitForImage => ["IMAGE".into(), "IMAGE".into(), "IMAGE".into()],
+            Self::WaitForImage(image_info) => ["Find Image".into(), "IMAGE".into(), "IMAGE".into()],
         }
     }
 }

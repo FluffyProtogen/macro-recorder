@@ -220,7 +220,7 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
                     MouseActionKind::Wheel(amount, point) => execute_scroll_wheel(*amount, *point),
                 },
 
-                Action::WaitForImage => todo!(),
+                Action::WaitForImage(..) => todo!(),
             }
         }
 

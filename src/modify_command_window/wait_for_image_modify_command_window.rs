@@ -1,13 +1,17 @@
 use crate::{
-    actions::Action,
+    actions::{Action, ImageInfo},
     gui::Recorder,
-    images::{screenshot, screenshot_to_color_image, RawScreenshot, IMAGE_PANEL_IMAGE_SIZE},
+    images::{
+        find_image, screenshot, screenshot_to_color_image, GrayImageSerializable, RawScreenshot,
+        RawScreenshotPair, IMAGE_PANEL_IMAGE_SIZE,
+    },
 };
 use std::cell::RefCell;
 
 use super::ModifyCommandWindow;
 use crate::gui::PIXELS_PER_POINT;
 use eframe::egui::*;
+use image::{DynamicImage, GrayImage, ImageBuffer, Luma};
 use winapi::{
     shared::winerror::ERROR_SINGLE_INSTANCE_APP,
     um::{
@@ -29,17 +33,35 @@ struct WaitForImageModifyCommandWindowData {
     capturing: bool,
     capture_start: Option<Pos2>,
     capture_end: Option<Pos2>,
-    screenshot_raw: Option<RawScreenshot>,
+    screenshot_raw: Option<RawScreenshotPair>,
     screenshot_texture: Option<TextureHandle>,
     max_difference_text_edit_text: String,
     search_location_text_edit_texts: Option<((String, String), (String, String))>,
     move_mouse_if_found: bool,
     check_if_not_found: bool,
     capturing_screenshot: bool,
+    previous_window_info: Option<(Pos2, Vec2)>,
+    enter_lock: bool,
 }
 
 impl WaitForImageModifyCommandWindow {
-    pub fn new(creating_command: bool, position: Pos2) -> Self {
+    pub fn new(
+        image_info: &ImageInfo,
+        creating_command: bool,
+        position: Pos2,
+        ctx: &Context,
+    ) -> Self {
+        let search_location_text_edit_texts = match (
+            image_info.search_location_left_top,
+            image_info.search_location_width_height,
+        ) {
+            (Some(top_left), Some(width_height)) => Some((
+                (top_left.0.to_string(), top_left.1.to_string()),
+                (width_height.0.to_string(), width_height.1.to_string()),
+            )),
+            _ => None,
+        };
+
         Self {
             data: RefCell::new(WaitForImageModifyCommandWindowData {
                 creating_command,
@@ -47,13 +69,21 @@ impl WaitForImageModifyCommandWindow {
                 capturing: false,
                 capture_start: None,
                 capture_end: None,
-                screenshot_raw: None,
-                screenshot_texture: None,
-                max_difference_text_edit_text: "0".into(),
-                search_location_text_edit_texts: None,
-                move_mouse_if_found: false,
-                check_if_not_found: false,
+                screenshot_raw: image_info.screenshot_raw.clone(),
+                screenshot_texture: image_info.screenshot_raw.as_ref().map(|screenshot| {
+                    ctx.load_texture(
+                        "Screenshot",
+                        screenshot_to_color_image(screenshot.color.clone()),
+                        TextureFilter::Linear,
+                    )
+                }),
+                max_difference_text_edit_text: image_info.image_similarity.to_string(),
+                search_location_text_edit_texts,
+                move_mouse_if_found: image_info.move_mouse_if_found,
+                check_if_not_found: image_info.check_if_not_found,
                 capturing_screenshot: false,
+                previous_window_info: None,
+                enter_lock: true,
             }),
         }
     }
@@ -74,9 +104,53 @@ impl WaitForImageModifyCommandWindow {
         window
     }
 
-    fn save(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {}
+    fn save(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {
+        let location_size = match &data.search_location_text_edit_texts {
+            Some(texts) => {
+                if let (Ok(left), Ok(top), Ok(width), Ok(height)) = (
+                    texts.0 .0.parse(),
+                    texts.0 .1.parse(),
+                    texts.1 .0.parse(),
+                    texts.1 .1.parse(),
+                ) {
+                    Some(((left, top), (width, height)))
+                } else {
+                    return;
+                }
+            }
+            None => None,
+        };
 
-    fn cancel(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {}
+        let search_location_left_top = location_size.map(|location_size| location_size.0);
+        let search_location_width_height = location_size.map(|location_size| location_size.1);
+
+        let image_similarity = match data.max_difference_text_edit_text.parse() {
+            Ok(result) => result,
+            Err(..) => return,
+        };
+
+        if let Some(screenshot_raw) = data.screenshot_raw.clone() {
+            let image_info = ImageInfo {
+                screenshot_raw: Some(screenshot_raw),
+                move_mouse_if_found: data.move_mouse_if_found,
+                check_if_not_found: data.check_if_not_found,
+                search_location_left_top,
+                search_location_width_height,
+                image_similarity,
+            };
+
+            recorder.modify_command_window = None;
+            recorder.action_list[recorder.selected_row.unwrap()] = Action::WaitForImage(image_info);
+        }
+    }
+
+    fn cancel(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {
+        recorder.modify_command_window = None;
+        if data.creating_command {
+            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.selected_row = None;
+        }
+    }
 
     fn capture(
         data: &mut WaitForImageModifyCommandWindowData,
@@ -86,6 +160,10 @@ impl WaitForImageModifyCommandWindow {
     ) {
         data.capturing = true;
         data.capturing_screenshot = capturing_screenshot;
+        data.previous_window_info = Some((
+            frame.info().window_info.position.unwrap(),
+            frame.info().window_info.size,
+        ));
         frame.set_decorations(false);
         frame.set_window_pos(pos2(-1.0, 0.0)); // offset by 1 so windows doesn't stop rendering everything behind the window lol
 
@@ -218,8 +296,8 @@ impl WaitForImageModifyCommandWindow {
                 let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
 
                 data.capture_start = Some(pos2(
-                    ((data.capture_start.unwrap().x - 1.0) * pixels_per_point).round(),
-                    ((data.capture_start.unwrap().y - 1.0) * pixels_per_point).round(),
+                    ((data.capture_start.unwrap().x + 1.0) * pixels_per_point).round(),
+                    ((data.capture_start.unwrap().y + 1.0) * pixels_per_point).round(),
                 ));
 
                 data.capture_end = Some(pos2(
@@ -240,19 +318,36 @@ impl WaitForImageModifyCommandWindow {
                             screenshot_to_color_image(screenshot.clone()),
                             TextureFilter::Linear,
                         ));
-                        data.screenshot_raw = Some(screenshot);
+
+                        let gray = DynamicImage::ImageRgba8(
+                            ImageBuffer::from_vec(
+                                screenshot.width as u32,
+                                screenshot.height as u32,
+                                screenshot.clone().pixels, // it's still BGRA
+                            )
+                            .unwrap(),
+                        )
+                        .to_luma8();
+
+                        data.screenshot_raw = Some(RawScreenshotPair {
+                            color: screenshot,
+                            gray: GrayImageSerializable(gray),
+                        })
                     }
 
                     data.search_location_text_edit_texts = Some((
                         (
                             lesser(capture_start.x, capture_end.x).to_string(),
-                            greater(capture_start.x, capture_end.x).to_string(),
+                            lesser(capture_start.y, capture_end.y).to_string(),
                         ),
                         (
                             (capture_start.x - capture_end.x).abs().to_string(),
                             (capture_start.y - capture_end.y).abs().to_string(),
                         ),
                     ));
+
+                    frame.set_window_size(data.previous_window_info.unwrap().1);
+                    frame.set_window_pos(data.previous_window_info.unwrap().0);
                 }
             }
         }
@@ -273,6 +368,10 @@ impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
         } else {
             let window = self.setup(drag_bounds);
             let data = &mut self.data.borrow_mut();
+
+            if ui.input().key_pressed(Key::Escape) {
+                self.cancel(data, recorder);
+            }
 
             window.show(ctx, |ui| {
                 ui.allocate_space(vec2(0.0, 15.0));
@@ -381,13 +480,13 @@ impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
                                 &mut data.search_location_text_edit_texts.as_mut().unwrap();
                             ui.allocate_space(vec2(45.0, 0.0));
 
-                            ui.label("Top: ");
+                            ui.label("Left: ");
                             TextEdit::singleline(&mut location.0 .0)
                                 .desired_width(50.0)
                                 .ui(ui);
                             ui.allocate_space(vec2(5.0, 0.1));
 
-                            ui.label("Left: ");
+                            ui.label("Top: ");
                             TextEdit::singleline(&mut location.0 .1)
                                 .desired_width(50.0)
                                 .ui(ui);
@@ -411,16 +510,60 @@ impl ModifyCommandWindow for WaitForImageModifyCommandWindow {
                         });
 
                         ui.allocate_space(vec2(0.0, 15.0));
-
-                        if ui.button("Check if image is found").clicked() {}
                     }
 
-                    if ui.input().key_pressed(Key::Enter) {
-                        self.save(data, recorder);
+                    if ui.button("Check if image is found").clicked() {
+                        if let Some(text) = &data.search_location_text_edit_texts {
+                            let start = match (text.0 .0.parse(), text.0 .1.parse()) {
+                                (Ok(x), Ok(y)) => Some(pos2(x, y)),
+                                _ => None,
+                            };
+                            let width_height = match (text.1 .0.parse(), text.1 .1.parse()) {
+                                (Ok(x), Ok(y)) => Some(pos2(x, y)),
+                                _ => None,
+                            };
+
+                            if let (Some(start), Some(width_height)) = (start, width_height) {
+                                let end = pos2(start.x + width_height.x, start.y + width_height.y);
+                                find_image(
+                                    data.screenshot_raw.as_ref().unwrap(),
+                                    Some((start, end)),
+                                );
+                            }
+                        } else {
+                            find_image(data.screenshot_raw.as_ref().unwrap(), None);
+                        };
                     }
-                    if ui.input().key_pressed(Key::Escape) {
-                        self.cancel(data, recorder);
+
+                    if ui.input().key_down(Key::Enter) {
+                        if !data.enter_lock {
+                            self.save(data, recorder);
+                        }
+                    } else {
+                        data.enter_lock = false;
                     }
+
+                    ui.allocate_space(vec2(0.0, 15.0));
+
+                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                        ui.add_space(35.0);
+                        if ui.button("Cancel").clicked() {
+                            self.cancel(data, recorder);
+                        }
+                        ui.add_space(35.0);
+                        if ui.button("Save").clicked() {
+                            self.save(data, recorder);
+                        }
+                    });
+                } else {
+                    ui.allocate_space(vec2(0.0, 15.0));
+
+                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                        ui.add_space(35.0);
+                        if ui.button("Cancel").clicked() {
+                            self.cancel(data, recorder);
+                        }
+                    });
                 }
             });
         }

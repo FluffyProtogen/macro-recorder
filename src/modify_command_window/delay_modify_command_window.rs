@@ -13,6 +13,7 @@ struct DelayModifyCommandWindowData {
     creating_command: bool,
     position: Option<Pos2>,
     text_edit_text: String,
+    enter_lock: bool,
 }
 
 impl DelayModifyCommandWindow {
@@ -22,6 +23,7 @@ impl DelayModifyCommandWindow {
                 creating_command,
                 position: Some(position),
                 text_edit_text: delay.to_string(),
+                enter_lock: true,
             }),
         }
     }
@@ -72,8 +74,12 @@ impl ModifyCommandWindow for DelayModifyCommandWindow {
         window.show(ctx, |ui| {
             let data = &mut self.data.borrow_mut();
 
-            if ui.input().key_pressed(Key::Enter) {
-                self.save(data, recorder);
+            if ui.input().key_down(Key::Enter) {
+                if !data.enter_lock {
+                    self.save(data, recorder);
+                }
+            } else {
+                data.enter_lock = false;
             }
             if ui.input().key_pressed(Key::Escape) {
                 self.cancel(data, recorder);

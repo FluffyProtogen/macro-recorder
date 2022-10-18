@@ -27,6 +27,7 @@ impl Action {
         &self,
         creating_command: bool,
         position: Pos2,
+        ctx: &Context,
     ) -> Box<dyn ModifyCommandWindow> {
         match self {
             Self::Mouse(mouse_action_kind) => Box::new(MouseModifyCommandWindow::new(
@@ -45,9 +46,11 @@ impl Action {
                 *key,
                 *key_state,
             )),
-            Self::WaitForImage => Box::new(WaitForImageModifyCommandWindow::new(
+            Self::WaitForImage(image_info) => Box::new(WaitForImageModifyCommandWindow::new(
+                image_info,
                 creating_command,
                 position,
+                ctx,
             )),
         }
     }
