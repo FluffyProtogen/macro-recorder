@@ -29,13 +29,19 @@ impl ActionRightClickDialog {
             ui.allocate_space(vec2(0.0, 5.0));
             let button = Button::new("Edit").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
             let edit_response = button.ui(ui);
+
             ui.allocate_space(vec2(0.0, 5.0));
             let button = Button::new("Delete").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
             let delete_response = button.ui(ui);
+
             ui.allocate_space(vec2(0.0, 5.0));
             let button =
                 Button::new("Select All").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
             let select_all_response = button.ui(ui);
+
+            ui.allocate_space(vec2(0.0, 5.0));
+            let button = Button::new("Move").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
+            let move_response = button.ui(ui);
 
             if edit_response.clicked() {
                 recorder.modal =
@@ -50,6 +56,11 @@ impl ActionRightClickDialog {
                 recorder.action_list.remove(recorder.selected_row.unwrap());
                 recorder.right_click_dialog = None;
                 recorder.selected_row = None;
+            }
+
+            if move_response.is_pointer_button_down_on() {
+                recorder.moving_row = true;
+                recorder.right_click_dialog = None;
             }
         });
     }

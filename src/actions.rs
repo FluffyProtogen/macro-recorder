@@ -7,28 +7,28 @@ pub struct Point {
     pub y: i32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum MouseActionKind {
     Moved(Point),
     Button(MouseActionButton),
     Wheel(i32, Option<Point>),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct MouseActionButton {
     pub point: Option<Point>,
     pub button: i32,
     pub state: MouseActionButtonState,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum MouseActionButtonState {
     Pressed,
     Released,
     Clicked,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Action {
     Delay(u32),
     Mouse(MouseActionKind),
@@ -43,7 +43,7 @@ pub enum KeyState {
     Pressed,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ImageInfo {
     pub screenshot_raw: Option<RawScreenshotPair>,
     pub move_mouse_if_found: bool,

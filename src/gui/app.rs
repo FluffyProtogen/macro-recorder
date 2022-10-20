@@ -1,3 +1,5 @@
+use crate::recorder::record_actions;
+
 use super::*;
 
 impl App for Recorder {
@@ -18,8 +20,7 @@ impl App for Recorder {
                 frame.set_visible(true);
             }
             if *action == RecordPlayAction::Record {
-                self.action_list =
-                    crate::recorder::record_actions(self.settings.record_mouse_movement);
+                self.action_list = record_actions(self.settings.record_mouse_movement);
                 frame.set_visible(true);
                 self.next_play_record_action = None;
             }
@@ -38,10 +39,18 @@ impl App for Recorder {
             CentralPanel::default()
         }
         .show(ctx, |ui| {
+            let moving_let_go_position =
+                if self.moving_row && !ui.input().pointer.button_down(PointerButton::Primary) {
+                    self.moving_row = false;
+                    ui.input().pointer.hover_pos()
+                } else {
+                    None
+                };
+
             let screen_dimensions = ui.available_size();
 
             ui.allocate_exact_size(
-                Vec2 { x: 0.0, y: 60.0 },
+                vec2(0.0, 60.0),
                 Sense {
                     click: true,
                     drag: false,
@@ -51,26 +60,67 @@ impl App for Recorder {
 
             egui::Frame::default().show(ui, |ui| {
                 ui.set_enabled(!self.are_any_modals_open());
-
+                let row_height = ui.spacing().interact_size.y;
                 if !self.transparent {
-                    let row_height = ui.spacing().interact_size.y;
-
                     let total_rows = self.action_list.len();
                     ScrollArea::vertical()
                         .enable_scrolling(
                             self.right_click_dialog.is_none() && !self.are_any_modals_open(),
                         )
                         .show_rows(ui, row_height, total_rows, |ui, row_range| {
-                            self.add_buttons(ctx, ui, row_range, screen_dimensions);
+                            self.add_buttons(
+                                ctx,
+                                ui,
+                                row_range,
+                                screen_dimensions,
+                                moving_let_go_position,
+                            );
                         });
 
                     self.top_panel(ctx, screen_dimensions, frame);
                     self.side_panel(ctx, screen_dimensions);
                     Self::dividing_lines(ui, screen_dimensions);
                 }
-                self.handle_main_menu_key_presses(ui, frame, screen_dimensions, ctx);
 
-                if let Some(dialog) = &self.right_click_dialog.clone() {
+                if self.moving_row {
+                    let pos = ui.input().pointer.hover_pos().unwrap();
+
+                    Area::new("Moving Row Area")
+                        .order(Order::Background)
+                        .current_pos(pos2(pos.x - 2000.0, pos.y - row_height / 2.0))
+                        .enabled(false)
+                        .show(ctx, |ui| {
+                            Button::new(" ".repeat(1000))
+                                .wrap(false)
+                                .fill(Color32::from_rgba_premultiplied(189, 231, 255, 255))
+                                .ui(ui);
+                        });
+
+                    let info = self
+                        .action_list
+                        .get(self.selected_row.unwrap())
+                        .unwrap()
+                        .get_grid_formatted();
+
+                    for (count, info) in info.iter().enumerate() {
+                        let step = (screen_dimensions.x - SIDE_PANEL_WIDTH) / 3.0;
+
+                        Area::new(format!("Draggable Row Text {}", count))
+                            .interactable(false)
+                            .order(Order::Background)
+                            .fixed_pos(pos2(
+                                ROW_LABEL_X_OFFSET + count as f32 * step,
+                                pos.y - row_height / 2.0,
+                            ))
+                            .show(ctx, |ui| {
+                                Label::new(info).wrap(false).ui(ui);
+                            });
+                    }
+                } else {
+                    self.handle_main_menu_key_presses(ui, frame, screen_dimensions, ctx);
+                }
+
+                if let Some(dialog) = self.right_click_dialog.clone() {
                     dialog.update(self, ctx, ui, screen_dimensions);
                 }
 

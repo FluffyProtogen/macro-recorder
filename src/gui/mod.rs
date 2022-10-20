@@ -4,6 +4,7 @@ use once_cell::sync::OnceCell;
 use std::{path::*, rc::Rc};
 
 pub static PIXELS_PER_POINT: OnceCell<f32> = OnceCell::new();
+pub const ROW_LABEL_X_OFFSET: f32 = 97.0;
 
 pub mod app;
 pub mod side_panel;
@@ -30,6 +31,7 @@ pub struct Recorder {
     pub transparent: bool,
     pub scroll_to_me_row: Option<usize>,
     pub modal: Option<Rc<dyn ModalWindow>>,
+    pub moving_row: bool,
 }
 
 const TOP_PANEL_HEIGHT: f32 = 65.0;
@@ -111,6 +113,7 @@ impl Recorder {
             transparent: false,
             scroll_to_me_row: None,
             modal: warning_window,
+            moving_row: false,
         }
     }
 
@@ -171,11 +174,19 @@ impl Recorder {
                 .interactable(false)
                 .order(Order::Background)
                 .fixed_pos(pos2(
-                    97.0 + count as f32 * step,
+                    ROW_LABEL_X_OFFSET + count as f32 * step,
                     start_pos + spacing * ((row - row_range.start) as f32 + 1.0),
                 ))
                 .show(ctx, |ui| {
-                    ui.label(info);
+                    if self.moving_row && row == self.selected_row.unwrap() {
+                        Label::new(
+                            RichText::new(info)
+                                .color(Color32::from_rgba_premultiplied(160, 160, 160, 255)),
+                        )
+                        .ui(ui);
+                    } else {
+                        ui.label(info);
+                    }
                 });
         }
     }
@@ -186,12 +197,17 @@ impl Recorder {
         ui: &mut Ui,
         row_range: std::ops::Range<usize>,
         screen_dimensions: Vec2,
+        moving_let_go_position: Option<Pos2>,
     ) {
         let mut start_pos = 0.0;
         for row in row_range.clone().into_iter() {
             let button_color = if let Some(selected_row) = self.selected_row {
                 if selected_row == row {
-                    Color32::from_rgba_premultiplied(189, 231, 255, 255)
+                    if self.moving_row {
+                        Color32::from_rgba_premultiplied(220, 239, 250, 255)
+                    } else {
+                        Color32::from_rgba_premultiplied(189, 231, 255, 255)
+                    }
                 } else {
                     Color32::from_rgba_premultiplied(0, 0, 0, if row % 2 == 0 { 10 } else { 30 })
                 }
@@ -235,6 +251,40 @@ impl Recorder {
 
             if row == row_range.clone().start {
                 start_pos = response.rect.top() - response.rect.height();
+            }
+
+            if let (Some(moving_let_go_position), Some(selected_row)) =
+                (moving_let_go_position, self.selected_row)
+            {
+                let distance_from_center = response.rect.center().y - moving_let_go_position.y;
+                if distance_from_center.abs() < response.rect.height() / 1.7 && selected_row != row
+                {
+                    if distance_from_center > 0.0 {
+                        // put new action at this index - 1
+                        self.action_list
+                            .insert(row, self.action_list[selected_row].clone());
+
+                        if row > selected_row {
+                            self.action_list.remove(selected_row);
+                            self.selected_row = Some(row - 1);
+                        } else {
+                            self.action_list.remove(selected_row + 1);
+                            self.selected_row = Some(row);
+                        }
+                    } else {
+                        // put new action at this index + 1
+                        self.action_list
+                            .insert(row + 1, self.action_list[selected_row].clone());
+
+                        if row > selected_row {
+                            self.action_list.remove(selected_row);
+                            self.selected_row = Some(row);
+                        } else {
+                            self.action_list.remove(selected_row + 1);
+                            self.selected_row = Some(row + 1);
+                        }
+                    }
+                }
             }
 
             self.add_row_label(

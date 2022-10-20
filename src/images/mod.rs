@@ -38,6 +38,7 @@ impl std::ops::Deref for GrayImageSerializable {
     }
 }
 
+// Serialization / Deserialization code copied from the serde examples lol
 impl Serialize for GrayImageSerializable {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
