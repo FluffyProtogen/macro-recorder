@@ -44,11 +44,8 @@ impl ActionRightClickDialog {
             let move_response = button.ui(ui);
 
             if edit_response.clicked() {
-                recorder.modal =
-                    Some(
-                        recorder.action_list[recorder.selected_row.unwrap()]
-                            .get_modify_command_window(false, self.position, ctx),
-                    );
+                recorder.modal = recorder.action_list[recorder.selected_row.unwrap()]
+                    .get_modify_command_window(false, self.position, ctx);
                 recorder.right_click_dialog = None;
             }
 

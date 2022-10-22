@@ -2,10 +2,9 @@ use std::rc::Rc;
 
 use egui::*;
 
-use crate::{
-    gui::{RecordPlayAction, Recorder},
-    ModalWindow,
-};
+use crate::gui::{RecordPlayAction, Recorder};
+
+use super::ModalWindow;
 
 pub struct DefaultErrorWindow {
     title: String,

@@ -9,7 +9,7 @@ use std::ffi::c_void;
 use std::ptr::null_mut;
 use winapi::um::{wingdi::*, winuser::*};
 
-const RESIZE_FACTOR: u32 = 5;
+const RESIZE_FACTOR: u32 = 3;
 
 use serde::*;
 
@@ -281,7 +281,10 @@ pub fn screenshot_raw(corner1: Pos2, corner2: Pos2) -> Vec<u8> {
     }
 }
 
-pub fn find_image(image: &RawScreenshotPair, search_coordinates: Option<(Pos2, Pos2)>) {
+pub fn find_image(
+    image: &RawScreenshotPair,
+    search_coordinates: Option<(Pos2, Pos2)>,
+) -> (f32, (i32, i32)) {
     let search_coordinates = search_coordinates.unwrap_or({
         let (width, height) = unsafe {
             (
@@ -318,17 +321,15 @@ pub fn find_image(image: &RawScreenshotPair, search_coordinates: Option<(Pos2, P
         FilterType::Gaussian,
     );
 
+    let image = &image;
+
     let result = imageproc::template_matching::match_template(
         &screenshot,
         &image,
-        MatchTemplateMethod::CrossCorrelationNormalized,
+        MatchTemplateMethod::SumOfSquaredErrorsNormalized,
     );
 
     let result = find_extremes(&result);
-    println!(
-        "max value: {}, max location: {:?}",
-        result.max_value, result.max_value_location
-    );
 
     let found_x = lesser(search_coordinates.0.x, search_coordinates.1.x) as i32
         + image.width() as i32 / 2 * RESIZE_FACTOR as i32
@@ -336,4 +337,6 @@ pub fn find_image(image: &RawScreenshotPair, search_coordinates: Option<(Pos2, P
     let found_y = lesser(search_coordinates.0.y, search_coordinates.1.y) as i32
         + image.height() as i32 / 2 * RESIZE_FACTOR as i32
         + result.max_value_location.1 as i32 * RESIZE_FACTOR as i32;
+
+    (result.max_value, (found_x, found_y))
 } // return inputcoordinate x + found x, inputcoordinate y + found y cuz image could be smaller than the whole screen

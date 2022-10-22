@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use crate::{
     actions::{self, Action, MouseActionButton, MouseActionButtonState, MouseActionKind, Point},
     gui::Recorder,
-    ModalWindow,
+    modals::ModalWindow,
 };
 use eframe::egui::*;
 use std::fmt::*;

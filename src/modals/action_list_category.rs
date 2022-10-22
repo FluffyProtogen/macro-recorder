@@ -1,25 +1,22 @@
-use egui::{vec2, Align, Align2, Context, Image, Key, Layout, Rect, Ui, Window};
-use serde::*;
+use egui::{vec2, Align, Align2, Context, Key, Layout, Rect, Ui, Window};
 use std::cell::RefCell;
 use strum_macros::EnumIter;
 
-use crate::{
-    actions::Action,
-    gui::{RecordPlayAction, Recorder},
-    images::RawScreenshotPair,
-    keycodes_to_string::key_code_to_string,
-    ModalWindow,
-};
+use crate::{actions::Action, gui::Recorder, modals::ModalWindow};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ActionListCategory {
     Wait,
+    If,
 }
 
 #[derive(Clone, Copy, Debug, EnumIter)]
 enum SubCategory {
     Delay,
     WaitForImage,
+    IfImage,
+    Else,
+    EndIf,
 }
 
 impl ActionListCategory {
@@ -27,6 +24,7 @@ impl ActionListCategory {
         use SubCategory::*;
         match *self {
             ActionListCategory::Wait => &[Delay, WaitForImage],
+            ActionListCategory::If => &[IfImage, Else, EndIf],
         }
     }
 }
@@ -37,6 +35,9 @@ impl SubCategory {
         match *self {
             Delay => Action::Delay(0),
             WaitForImage => Action::WaitForImage(Default::default()),
+            IfImage => Action::IfImage(Default::default()),
+            Else => Action::Else,
+            EndIf => Action::EndIf,
         }
     }
 }
@@ -47,6 +48,9 @@ impl ToString for SubCategory {
         match *self {
             Delay => "Delay".into(),
             WaitForImage => "Wait For Image".into(),
+            IfImage => "If Image Found".into(),
+            Else => "Else".into(),
+            EndIf => "End If".into(),
         }
     }
 }
@@ -62,7 +66,7 @@ impl ActionListWindow {
         }
     }
 
-    fn setup(&self, recorder: &mut Recorder, drag_bounds: Rect) -> Window {
+    fn setup(&self, drag_bounds: Rect) -> Window {
         Window::new(format!("{:?} Selection", self.data.borrow().category))
             .collapsible(false)
             .resizable(false)
@@ -82,13 +86,13 @@ impl ModalWindow for ActionListWindow {
         ctx: &Context,
         ui: &mut Ui,
         drag_bounds: Rect,
-        frame: &mut eframe::Frame,
+        _frame: &mut eframe::Frame,
     ) {
         if ui.input().key_pressed(Key::Escape) {
             recorder.modal = None;
         }
 
-        let window = self.setup(recorder, drag_bounds);
+        let window = self.setup(drag_bounds);
 
         window.show(ctx, |ui| {
             let data = self.data.borrow();

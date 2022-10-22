@@ -14,12 +14,12 @@ impl App for Recorder {
 
         PIXELS_PER_POINT.set(ctx.pixels_per_point()).ok();
 
-        if let Some(action) = &self.next_play_record_action {
-            if *action == RecordPlayAction::Play {
+        if let Some(action) = self.next_play_record_action {
+            if action == RecordPlayAction::Play {
                 play_back_actions(&self.action_list, &self.settings);
                 frame.set_visible(true);
             }
-            if *action == RecordPlayAction::Record {
+            if action == RecordPlayAction::Record {
                 self.action_list = record_actions(self.settings.record_mouse_movement);
                 frame.set_visible(true);
                 self.next_play_record_action = None;
@@ -83,39 +83,7 @@ impl App for Recorder {
                 }
 
                 if self.moving_row {
-                    let pos = ui.input().pointer.hover_pos().unwrap();
-
-                    Area::new("Moving Row Area")
-                        .order(Order::Background)
-                        .current_pos(pos2(pos.x - 2000.0, pos.y - row_height / 2.0))
-                        .enabled(false)
-                        .show(ctx, |ui| {
-                            Button::new(" ".repeat(1000))
-                                .wrap(false)
-                                .fill(Color32::from_rgba_premultiplied(189, 231, 255, 255))
-                                .ui(ui);
-                        });
-
-                    let info = self
-                        .action_list
-                        .get(self.selected_row.unwrap())
-                        .unwrap()
-                        .get_grid_formatted();
-
-                    for (count, info) in info.iter().enumerate() {
-                        let step = (screen_dimensions.x - SIDE_PANEL_WIDTH) / 3.0;
-
-                        Area::new(format!("Draggable Row Text {}", count))
-                            .interactable(false)
-                            .order(Order::Background)
-                            .fixed_pos(pos2(
-                                ROW_LABEL_X_OFFSET + count as f32 * step,
-                                pos.y - row_height / 2.0,
-                            ))
-                            .show(ctx, |ui| {
-                                Label::new(info).wrap(false).ui(ui);
-                            });
-                    }
+                    self.handle_moving_row(ui, ctx, row_height, screen_dimensions);
                 } else {
                     self.handle_main_menu_key_presses(ui, frame, screen_dimensions, ctx);
                 }
@@ -138,6 +106,6 @@ impl App for Recorder {
                 }
             });
         });
-        ctx.request_repaint();
+        ctx.request_repaint(); // forces egui to render frames at all times, even when not focused (be able to detect play key shortcut even when not focused)
     }
 }

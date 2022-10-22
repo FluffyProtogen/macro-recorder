@@ -1,4 +1,4 @@
-use crate::action_list_category::{ActionListCategory, ActionListWindow};
+use crate::modals::action_list_category::{ActionListCategory, ActionListWindow};
 
 use super::*;
 
@@ -80,6 +80,12 @@ impl Recorder {
 
                     if ui.button("Wait").clicked() {
                         self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::Wait)));
+                    }
+
+                    ui.allocate_space(vec2(0.0, 30.0));
+
+                    if ui.button("If").clicked() {
+                        self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::If)));
                     }
                 });
             });

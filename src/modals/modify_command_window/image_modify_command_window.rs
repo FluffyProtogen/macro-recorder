@@ -1,3 +1,5 @@
+use crate::gui::PIXELS_PER_POINT;
+use crate::modals::ModalWindow;
 use crate::{
     actions::{Action, ImageInfo},
     gui::Recorder,
@@ -5,23 +7,26 @@ use crate::{
         find_image, screenshot, screenshot_to_color_image, GrayImageSerializable,
         RawScreenshotPair, IMAGE_PANEL_IMAGE_SIZE,
     },
-    ModalWindow,
 };
-use std::cell::RefCell;
-
-use crate::gui::PIXELS_PER_POINT;
 use eframe::egui::*;
 use image::{DynamicImage, ImageBuffer};
+use std::cell::RefCell;
 use winapi::um::winuser::{GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN};
 
 const CAPTURE_COLOR: Color32 = Color32::from_rgba_premultiplied(50, 50, 50, 0);
 const INVALID_CAPTURE_COLOR: Color32 = Color32::from_rgba_premultiplied(50, 00, 00, 0);
 
-pub struct WaitForImageModifyCommandWindow {
-    data: RefCell<WaitForImageModifyCommandWindowData>,
+#[derive(Clone, Copy)]
+pub enum ImageWindowType {
+    Wait,
+    If,
 }
 
-struct WaitForImageModifyCommandWindowData {
+pub struct ImageModifyCommandWindow {
+    data: RefCell<ImageModifyCommandWindowData>,
+}
+
+struct ImageModifyCommandWindowData {
     creating_command: bool,
     position: Option<Pos2>,
     capturing: bool,
@@ -36,14 +41,17 @@ struct WaitForImageModifyCommandWindowData {
     capturing_screenshot: bool,
     previous_window_info: Option<(Pos2, Vec2)>,
     enter_lock: bool,
+    window_type: ImageWindowType,
+    screenshot_next_frame: bool,
 }
 
-impl WaitForImageModifyCommandWindow {
+impl ImageModifyCommandWindow {
     pub fn new(
         image_info: &ImageInfo,
         creating_command: bool,
         position: Pos2,
         ctx: &Context,
+        window_type: ImageWindowType,
     ) -> Self {
         let search_location_text_edit_texts = match (
             image_info.search_location_left_top,
@@ -57,7 +65,7 @@ impl WaitForImageModifyCommandWindow {
         };
 
         Self {
-            data: RefCell::new(WaitForImageModifyCommandWindowData {
+            data: RefCell::new(ImageModifyCommandWindowData {
                 creating_command,
                 position: Some(position),
                 capturing: false,
@@ -78,17 +86,22 @@ impl WaitForImageModifyCommandWindow {
                 capturing_screenshot: false,
                 previous_window_info: None,
                 enter_lock: true,
+                screenshot_next_frame: false,
+                window_type,
             }),
         }
     }
 
     fn setup(&self, drag_bounds: Rect) -> Window {
-        let mut window = Window::new("Wait For Image")
-            .collapsible(false)
-            .resizable(false)
-            .drag_bounds(drag_bounds);
-
         let mut data = self.data.borrow_mut();
+
+        let mut window = Window::new(match data.window_type {
+            ImageWindowType::Wait => "Wait For Image",
+            ImageWindowType::If => "If Image Found",
+        })
+        .collapsible(false)
+        .resizable(false)
+        .drag_bounds(drag_bounds);
 
         if let Some(position) = &data.position {
             window = window.current_pos(Pos2::new(position.x, position.y));
@@ -98,7 +111,7 @@ impl WaitForImageModifyCommandWindow {
         window
     }
 
-    fn save(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {
+    fn save(&self, data: &ImageModifyCommandWindowData, recorder: &mut Recorder) {
         let location_size = match &data.search_location_text_edit_texts {
             Some(texts) => {
                 if let (Ok(left), Ok(top), Ok(width), Ok(height)) = (
@@ -134,11 +147,14 @@ impl WaitForImageModifyCommandWindow {
             };
 
             recorder.modal = None;
-            recorder.action_list[recorder.selected_row.unwrap()] = Action::WaitForImage(image_info);
+            recorder.action_list[recorder.selected_row.unwrap()] = match data.window_type {
+                ImageWindowType::Wait => Action::WaitForImage(image_info),
+                ImageWindowType::If => Action::IfImage(image_info),
+            };
         }
     }
 
-    fn cancel(&self, data: &WaitForImageModifyCommandWindowData, recorder: &mut Recorder) {
+    fn cancel(&self, data: &ImageModifyCommandWindowData, recorder: &mut Recorder) {
         recorder.modal = None;
         if data.creating_command {
             recorder.action_list.remove(recorder.selected_row.unwrap());
@@ -147,7 +163,7 @@ impl WaitForImageModifyCommandWindow {
     }
 
     fn capture(
-        data: &mut WaitForImageModifyCommandWindowData,
+        data: &mut ImageModifyCommandWindowData,
         frame: &mut eframe::Frame,
         recorder: &mut Recorder,
         capturing_screenshot: bool,
@@ -192,6 +208,75 @@ impl WaitForImageModifyCommandWindow {
         let screen_size = frame.info().window_info.size;
 
         let data = &mut self.data.borrow_mut();
+
+        if data.screenshot_next_frame {
+            frame.set_decorations(true);
+            frame.set_fullscreen(false);
+            recorder.transparent = false;
+
+            data.screenshot_next_frame = false;
+
+            let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
+
+            data.capture_start = Some(pos2(
+                ((data.capture_start.unwrap().x) * pixels_per_point).round(),
+                ((data.capture_start.unwrap().y) * pixels_per_point).round(),
+            ));
+
+            data.capture_end = Some(pos2(
+                ((data.capture_end.unwrap().x) * pixels_per_point).round(),
+                ((data.capture_end.unwrap().y) * pixels_per_point).round(),
+            ));
+
+            let capture_start = data.capture_start.unwrap();
+            let capture_end = data.capture_end.unwrap();
+
+            if (capture_start.x - capture_end.x).abs() as i32 != 0
+                && (capture_start.y - capture_end.y).abs() as i32 != 0
+            {
+                if data.capturing_screenshot {
+                    let screenshot = screenshot(capture_start, capture_end);
+                    data.screenshot_texture = Some(ctx.load_texture(
+                        "Screenshot",
+                        screenshot_to_color_image(screenshot.clone()),
+                        TextureFilter::Linear,
+                    ));
+
+                    let gray = DynamicImage::ImageRgba8(
+                        ImageBuffer::from_vec(
+                            screenshot.width as u32,
+                            screenshot.height as u32,
+                            screenshot.clone().pixels, // it's still BGRA
+                        )
+                        .unwrap(),
+                    )
+                    .to_luma8();
+
+                    data.screenshot_raw = Some(RawScreenshotPair {
+                        color: screenshot,
+                        gray: GrayImageSerializable(gray),
+                    })
+                }
+
+                data.search_location_text_edit_texts = Some((
+                    (
+                        lesser(capture_start.x, capture_end.x).to_string(),
+                        lesser(capture_start.y, capture_end.y).to_string(),
+                    ),
+                    (
+                        (capture_start.x - capture_end.x).abs().to_string(),
+                        (capture_start.y - capture_end.y).abs().to_string(),
+                    ),
+                ));
+
+                frame.set_window_size(data.previous_window_info.unwrap().1);
+                frame.set_window_pos(data.previous_window_info.unwrap().0);
+            }
+
+            frame.set_visible(true);
+            data.capturing = false;
+            return;
+        }
 
         let pointer = ui.input().pointer.clone(); // clone it to avoid a dead lock
 
@@ -282,73 +367,14 @@ impl WaitForImageModifyCommandWindow {
                     );
                 }
             } else {
-                data.capturing = false;
-                frame.set_decorations(true);
-                frame.set_fullscreen(false);
-                recorder.transparent = false;
-
-                let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
-
-                data.capture_start = Some(pos2(
-                    ((data.capture_start.unwrap().x + 1.0) * pixels_per_point).round(),
-                    ((data.capture_start.unwrap().y + 1.0) * pixels_per_point).round(),
-                ));
-
-                data.capture_end = Some(pos2(
-                    ((data.capture_end.unwrap().x - 1.0) * pixels_per_point).round(),
-                    ((data.capture_end.unwrap().y - 1.0) * pixels_per_point).round(),
-                ));
-
-                let capture_start = data.capture_start.unwrap();
-                let capture_end = data.capture_end.unwrap();
-
-                if (capture_start.x - capture_end.x).abs() as i32 != 0
-                    && (capture_start.y - capture_end.y).abs() as i32 != 0
-                {
-                    if data.capturing_screenshot {
-                        let screenshot = screenshot(capture_start, capture_end);
-                        data.screenshot_texture = Some(ctx.load_texture(
-                            "Screenshot",
-                            screenshot_to_color_image(screenshot.clone()),
-                            TextureFilter::Linear,
-                        ));
-
-                        let gray = DynamicImage::ImageRgba8(
-                            ImageBuffer::from_vec(
-                                screenshot.width as u32,
-                                screenshot.height as u32,
-                                screenshot.clone().pixels, // it's still BGRA
-                            )
-                            .unwrap(),
-                        )
-                        .to_luma8();
-
-                        data.screenshot_raw = Some(RawScreenshotPair {
-                            color: screenshot,
-                            gray: GrayImageSerializable(gray),
-                        })
-                    }
-
-                    data.search_location_text_edit_texts = Some((
-                        (
-                            lesser(capture_start.x, capture_end.x).to_string(),
-                            lesser(capture_start.y, capture_end.y).to_string(),
-                        ),
-                        (
-                            (capture_start.x - capture_end.x).abs().to_string(),
-                            (capture_start.y - capture_end.y).abs().to_string(),
-                        ),
-                    ));
-
-                    frame.set_window_size(data.previous_window_info.unwrap().1);
-                    frame.set_window_pos(data.previous_window_info.unwrap().0);
-                }
+                data.screenshot_next_frame = true;
+                frame.set_visible(false);
             }
         }
     }
 }
 
-impl ModalWindow for WaitForImageModifyCommandWindow {
+impl ModalWindow for ImageModifyCommandWindow {
     fn update(
         &self,
         recorder: &mut Recorder,
@@ -421,7 +447,7 @@ impl ModalWindow for WaitForImageModifyCommandWindow {
                             .desired_width(50.0)
                             .ui(ui);
                         ui.allocate_space(vec2(5.0, 0.0));
-                        ui.label("Max Difference (0 means identical)");
+                        ui.label("Max Difference (0 means identical; 0.03 recommended)");
                     });
 
                     ui.allocate_space(vec2(0.0, 15.0));

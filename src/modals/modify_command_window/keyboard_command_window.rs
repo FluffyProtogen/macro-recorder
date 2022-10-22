@@ -4,7 +4,7 @@ use crate::{
     actions::{Action, KeyState},
     gui::Recorder,
     keycodes_to_string::{key_code_to_string, ALLOWED_KEYBOARD_KEYS},
-    ModalWindow,
+    modals::ModalWindow,
 };
 use eframe::egui::*;
 

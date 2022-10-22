@@ -34,6 +34,9 @@ pub enum Action {
     Mouse(MouseActionKind),
     Keyboard(i32, KeyState),
     WaitForImage(ImageInfo),
+    IfImage(ImageInfo),
+    Else,
+    EndIf,
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Debug)]
@@ -61,7 +64,7 @@ impl Default for ImageInfo {
             check_if_not_found: false,
             search_location_left_top: None,
             search_location_width_height: None,
-            image_similarity: 0.0,
+            image_similarity: 0.03,
         }
     }
 }
@@ -114,6 +117,21 @@ impl Action {
                     "".into()
                 },
             ],
+            Self::IfImage(image_info) => [
+                "If Image".into(),
+                if image_info.check_if_not_found {
+                    "If image not found".into()
+                } else {
+                    "If image found".into()
+                },
+                if image_info.move_mouse_if_found {
+                    "Move mouse to center if found".into()
+                } else {
+                    "".into()
+                },
+            ],
+            Self::Else => ["Else".into(), "".into(), "".into()],
+            Self::EndIf => ["End If".into(), "".into(), "".into()],
         }
     }
 }

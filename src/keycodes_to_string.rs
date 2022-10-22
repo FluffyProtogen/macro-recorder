@@ -35,20 +35,20 @@ lazy_static::lazy_static! {
             VK_HELP,
             ];
 
-        vec.append(&mut (0x30..=0x39).collect::<Vec<i32>>());
-        vec.append(&mut (0x41..=0x5A).collect::<Vec<i32>>());
+        vec.append(&mut (0x30..=0x39).collect());
+        vec.append(&mut (0x41..=0x5A).collect());
         vec.push(VK_LWIN);
         vec.push(VK_RWIN);
         vec.push(VK_APPS);
         vec.push(VK_SLEEP);
-        vec.append(&mut (VK_NUMPAD0..=VK_NUMPAD9).collect::<Vec<i32>>());
+        vec.append(&mut (VK_NUMPAD0..=VK_NUMPAD9).collect());
         vec.push(VK_ADD);
         vec.push(VK_SUBTRACT);
         vec.push(VK_MULTIPLY);
         vec.push(VK_DIVIDE);
         vec.push(VK_SEPARATOR);
         vec.push(VK_DECIMAL);
-        vec.append(&mut (VK_F1..=VK_F24).collect::<Vec<i32>>());
+        vec.append(&mut (VK_F1..=VK_F24).collect());
         vec.push(VK_NUMLOCK);
         vec.push(VK_SCROLL);
         vec

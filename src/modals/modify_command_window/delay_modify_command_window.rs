@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::{actions::Action, gui::Recorder, ModalWindow};
+use crate::{actions::Action, gui::Recorder, modals::ModalWindow};
 use eframe::egui::*;
 
 pub struct DelayModifyCommandWindow {

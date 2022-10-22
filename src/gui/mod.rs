@@ -12,13 +12,12 @@ pub mod top_panel;
 
 use crate::{
     actions::{Action, KeyState, MouseActionKind, Point},
-    load_from_file, play_back_actions, play_key_pressed,
+    load_from_file,
+    modals::{warning_window::DefaultErrorWindow, ModalWindow},
+    play_back_actions, play_key_pressed,
     right_click_dialog::ActionRightClickDialog,
     save_macro,
     settings::{self, Settings},
-    settings_window::SettingsWindow,
-    warning_window::{DefaultErrorWindow, RecordConfirmationWindow},
-    ModalWindow,
 };
 
 pub struct Recorder {
@@ -38,7 +37,7 @@ const TOP_PANEL_HEIGHT: f32 = 65.0;
 
 const SIDE_PANEL_WIDTH: f32 = 65.0;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RecordPlayAction {
     Play,
     Record,
@@ -118,14 +117,14 @@ impl Recorder {
     }
 
     pub fn create_action_window(&mut self, action: Action, screen_dimensions: Vec2, ctx: &Context) {
-        self.modal = Some(action.get_modify_command_window(
+        self.modal = action.get_modify_command_window(
             true,
             pos2(
                 screen_dimensions.x / 2.0 - SIDE_PANEL_WIDTH,
                 screen_dimensions.y / 2.0 - TOP_PANEL_HEIGHT,
             ),
             ctx,
-        ));
+        );
 
         self.create_action(action);
     }
@@ -240,13 +239,8 @@ impl Recorder {
             }
 
             if response.double_clicked() {
-                self.modal = Some(
-                    self.action_list[self.selected_row.unwrap()].get_modify_command_window(
-                        false,
-                        response.hover_pos().unwrap(),
-                        ctx,
-                    ),
-                );
+                self.modal = self.action_list[self.selected_row.unwrap()]
+                    .get_modify_command_window(false, response.hover_pos().unwrap(), ctx);
             }
 
             if row == row_range.clone().start {
@@ -260,7 +254,6 @@ impl Recorder {
                 if distance_from_center.abs() < response.rect.height() / 1.7 && selected_row != row
                 {
                     if distance_from_center > 0.0 {
-                        // put new action at this index - 1
                         self.action_list
                             .insert(row, self.action_list[selected_row].clone());
 
@@ -272,7 +265,6 @@ impl Recorder {
                             self.selected_row = Some(row);
                         }
                     } else {
-                        // put new action at this index + 1
                         self.action_list
                             .insert(row + 1, self.action_list[selected_row].clone());
 
@@ -337,15 +329,13 @@ impl Recorder {
         }
 
         if let (true, Some(..)) = (ui.input().key_pressed(Key::Enter), self.selected_row) {
-            self.modal = Some(
-                self.action_list[self.selected_row.unwrap()].get_modify_command_window(
-                    false,
-                    pos2(
-                        screen_dimensions.x / 2.0 - SIDE_PANEL_WIDTH,
-                        screen_dimensions.y / 2.0 - TOP_PANEL_HEIGHT,
-                    ),
-                    ctx,
+            self.modal = self.action_list[self.selected_row.unwrap()].get_modify_command_window(
+                false,
+                pos2(
+                    screen_dimensions.x / 2.0 - SIDE_PANEL_WIDTH,
+                    screen_dimensions.y / 2.0 - TOP_PANEL_HEIGHT,
                 ),
+                ctx,
             );
             self.right_click_dialog = None;
         }
@@ -394,5 +384,47 @@ impl Recorder {
             "Fluffy Macro Recorder - {}",
             self.current_macro_path.as_ref().unwrap().to_str().unwrap()
         ));
+    }
+
+    fn handle_moving_row(
+        &mut self,
+        ui: &mut Ui,
+        ctx: &Context,
+        row_height: f32,
+        screen_dimensions: Vec2,
+    ) {
+        let pos = ui.input().pointer.hover_pos().unwrap();
+
+        Area::new("Moving Row Area")
+            .order(Order::Background)
+            .current_pos(pos2(pos.x - 2000.0, pos.y - row_height / 2.0))
+            .enabled(false)
+            .show(ctx, |ui| {
+                Button::new(" ".repeat(1000))
+                    .wrap(false)
+                    .fill(Color32::from_rgba_premultiplied(189, 231, 255, 255))
+                    .ui(ui);
+            });
+
+        let info = self
+            .action_list
+            .get(self.selected_row.unwrap())
+            .unwrap()
+            .get_grid_formatted();
+
+        for (count, info) in info.iter().enumerate() {
+            let step = (screen_dimensions.x - SIDE_PANEL_WIDTH) / 3.0;
+
+            Area::new(format!("Draggable Row Text {}", count))
+                .interactable(false)
+                .order(Order::Background)
+                .fixed_pos(pos2(
+                    ROW_LABEL_X_OFFSET + count as f32 * step,
+                    pos.y - row_height / 2.0,
+                ))
+                .show(ctx, |ui| {
+                    Label::new(info).wrap(false).ui(ui);
+                });
+        }
     }
 }

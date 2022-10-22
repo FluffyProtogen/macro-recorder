@@ -1,3 +1,5 @@
+use crate::modals::{settings_window::SettingsWindow, warning_window::{DefaultErrorWindow, RecordConfirmationWindow}};
+
 use super::*;
 
 impl Recorder {

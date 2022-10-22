@@ -1,18 +1,15 @@
-pub mod action_list_category;
 pub mod actions;
 pub mod gui;
 pub mod images;
 pub mod keycodes_to_string;
-pub mod modify_command_window;
+pub mod modals;
 pub mod recorder;
 pub mod right_click_dialog;
 pub mod settings;
-pub mod settings_window;
-pub mod warning_window;
 use actions::*;
 use chrono::{DateTime, Utc};
-use egui::{Context, Rect, Ui};
-use gui::Recorder;
+use egui::pos2;
+use images::find_image;
 use settings::Settings;
 use std::{
     error::Error,
@@ -21,17 +18,6 @@ use std::{
     path::Path,
     time::SystemTime,
 };
-
-pub trait ModalWindow {
-    fn update(
-        &self,
-        recorder: &mut Recorder,
-        ctx: &Context,
-        ui: &mut Ui,
-        screen_dimensions: Rect,
-        frame: &mut eframe::Frame,
-    );
-}
 
 use winapi::um::winuser::*;
 
@@ -81,9 +67,7 @@ fn execute_mouse_action(action: &MouseActionButton) {
         };
 
         if let Some(point) = action.point {
-            unsafe {
-                SetCursorPos(point.x, point.y);
-            };
+            unsafe { SetCursorPos(point.x, point.y) };
         }
 
         unsafe { SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32) };
@@ -128,9 +112,7 @@ fn execute_mouse_action(action: &MouseActionButton) {
         ];
 
         if let Some(point) = action.point {
-            unsafe {
-                SetCursorPos(point.x, point.y);
-            };
+            unsafe { SetCursorPos(point.x, point.y) };
         }
 
         unsafe { SendInput(2, inputs.as_mut_ptr(), std::mem::size_of::<INPUT>() as i32) };
@@ -193,18 +175,38 @@ fn execute_keyboard_action(key_code: i32, state: KeyState) {
             },
         ];
 
-        unsafe {
-            SendInput(2, inputs.as_mut_ptr(), std::mem::size_of::<INPUT>() as i32);
-        };
+        unsafe { SendInput(2, inputs.as_mut_ptr(), std::mem::size_of::<INPUT>() as i32) };
     }
 }
 
 pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
+    let mut if_stack: Vec<bool> = vec![];
+
     let mut counter = 0;
     while counter < settings.repeat_times || settings.repeat_times == 0 {
         for action in action_list.iter() {
             if stop_key_pressed() {
                 return;
+            }
+
+            match action {
+                Action::Else => {
+                    if let Some(last) = if_stack.last_mut() {
+                        *last = !*last;
+                    } else {
+                        panic!("NEED TO MAKE IT STOP THE PLAYBACK PROCESS (RETURN) AND MAKE AN ERROR WINDOW SAYING ELSE WITHOUT IF");
+                    }
+                }
+                Action::EndIf => {
+                    if if_stack.pop().is_none() {
+                        panic!("NEED TO MAKE IT STOP THE PLAYBACK PROCESS (RETURN) AND MAKE AN ERROR WINDOW SAYING ENDIF WITHOUT IF");
+                    }
+                }
+                _ => {}
+            }
+
+            if let Some(false) = if_stack.last() {
+                continue;
             }
 
             match action {
@@ -235,7 +237,10 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
                     MouseActionKind::Wheel(amount, point) => execute_scroll_wheel(*amount, *point),
                 },
 
-                Action::WaitForImage(..) => todo!(),
+                Action::WaitForImage(image_info) => execute_wait_for_image(image_info),
+                Action::IfImage(image_info) => if_stack.push(execute_if_image(image_info)),
+                Action::Else => {}
+                Action::EndIf => {}
             }
         }
 
@@ -245,7 +250,54 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
     }
 }
 
-pub fn execute_scroll_wheel(amount: i32, point: Option<Point>) {
+fn execute_if_image(image: &ImageInfo) -> bool {
+    let search_coordinates = match (
+        image.search_location_left_top,
+        image.search_location_width_height,
+    ) {
+        (Some(left_top), Some(width_height)) => {
+            let corner1 = pos2(left_top.0 as f32, left_top.1 as f32);
+            let corner2 = pos2(
+                corner1.x + width_height.0 as f32,
+                corner1.y + width_height.1 as f32,
+            );
+
+            Some((corner1, corner2))
+        }
+        _ => None,
+    };
+
+    let (difference, (x, y)) =
+        find_image(image.screenshot_raw.as_ref().unwrap(), search_coordinates);
+
+    if image.check_if_not_found {
+        if difference > image.image_similarity {
+            true
+        } else {
+            false
+        }
+    } else {
+        if difference <= image.image_similarity {
+            println!("{difference}");
+            if image.move_mouse_if_found {
+                unsafe { SetCursorPos(x, y) };
+            }
+            true
+        } else {
+            false
+        }
+    }
+}
+
+fn execute_wait_for_image(image: &ImageInfo) {
+    loop {
+        if stop_key_pressed() || execute_if_image(image) {
+            break;
+        }
+    }
+}
+
+fn execute_scroll_wheel(amount: i32, point: Option<Point>) {
     let mouse_input = MOUSEINPUT {
         dx: 0,
         dy: 0,
@@ -261,9 +313,7 @@ pub fn execute_scroll_wheel(amount: i32, point: Option<Point>) {
     };
 
     if let Some(point) = point {
-        unsafe {
-            SetCursorPos(point.x, point.y);
-        };
+        unsafe { SetCursorPos(point.x, point.y) };
     }
 
     unsafe { SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32) };

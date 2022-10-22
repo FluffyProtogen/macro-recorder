@@ -2,7 +2,9 @@ use std::cell::RefCell;
 
 use egui::*;
 
-use crate::{gui::Recorder, settings, warning_window::DefaultErrorWindow, ModalWindow, Settings};
+use crate::{gui::Recorder, settings, Settings};
+
+use super::{warning_window::DefaultErrorWindow, ModalWindow};
 
 pub struct SettingsWindow {
     data: RefCell<SettingsWindowData>,
