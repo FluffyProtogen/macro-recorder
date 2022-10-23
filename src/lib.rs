@@ -180,11 +180,10 @@ fn execute_keyboard_action(key_code: i32, state: KeyState) {
 }
 
 pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
-    let mut if_stack: Vec<bool> = vec![];
-
     let mut counter = 0;
     while counter < settings.repeat_times || settings.repeat_times == 0 {
-        for action in action_list.iter() {
+        let mut if_stack: Vec<bool> = vec![];
+        for (count, action) in action_list.iter().enumerate() {
             if stop_key_pressed() {
                 return;
             }
@@ -269,6 +268,8 @@ fn execute_if_image(image: &ImageInfo) -> bool {
 
     let (difference, (x, y)) =
         find_image(image.screenshot_raw.as_ref().unwrap(), search_coordinates);
+
+    println!("{}", difference);
 
     if image.check_if_not_found {
         if difference > image.image_similarity {
