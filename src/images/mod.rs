@@ -1,15 +1,19 @@
-use egui::{pos2, ColorImage, Pos2};
+use egui::{pos2, Color32, ColorImage, Pos2};
 use image::imageops::{resize, FilterType};
 use image::*;
 use imageproc::template_matching::{find_extremes, MatchTemplateMethod};
+use rayon::prelude::IndexedParallelIterator;
+use rayon::slice::ParallelSlice;
 use rayon::{prelude::ParallelIterator, slice::ParallelSliceMut};
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeStruct;
 use std::ffi::c_void;
+use std::mem::zeroed;
 use std::ptr::null_mut;
+use winapi::shared::windef::{LPPOINT, POINT};
 use winapi::um::{wingdi::*, winuser::*};
 
-const RESIZE_FACTOR: u32 = 1;
+const RESIZE_FACTOR: u32 = 3;
 
 use serde::*;
 
@@ -321,40 +325,42 @@ pub fn find_image(
         FilterType::Gaussian,
     );
 
-    //let image = &image.gray;
-
     let result = imageproc::template_matching::match_template(
         &screenshot,
         &image,
-        MatchTemplateMethod::SumOfSquaredErrorsNormalized,
+        MatchTemplateMethod::CrossCorrelationNormalized,
     );
 
     let result = find_extremes(&result);
 
     let found_x = lesser(search_coordinates.0.x, search_coordinates.1.x) as i32
         + image.width() as i32 / 2 * RESIZE_FACTOR as i32
-        + result.min_value_location.0 as i32 * RESIZE_FACTOR as i32;
+        + result.max_value_location.0 as i32 * RESIZE_FACTOR as i32;
     let found_y = lesser(search_coordinates.0.y, search_coordinates.1.y) as i32
         + image.height() as i32 / 2 * RESIZE_FACTOR as i32
-        + result.min_value_location.1 as i32 * RESIZE_FACTOR as i32;
+        + result.max_value_location.1 as i32 * RESIZE_FACTOR as i32;
 
-    image::save_buffer(
-        "FLUFF.png",
-        &image.as_bytes(),
-        image.width(),
-        image.height(),
-        ColorType::L8,
-    )
-    .unwrap();
+    (result.max_value, (found_x, found_y))
+}
 
-    image::save_buffer(
-        "SCREENSHOT.png",
-        &screenshot.as_bytes(),
-        screenshot.width(),
-        screenshot.height(),
-        ColorType::L8,
-    )
-    .unwrap();
+pub fn find_pixel(search_coordinates: (Pos2, Pos2), color: Color32) -> Option<(i32, i32)> {
+    let width = (search_coordinates.0.x - search_coordinates.1.x).abs() as usize;
 
-    (result.min_value, (found_x, found_y))
-} // return inputcoordinate x + found x, inputcoordinate y + found y cuz image could be smaller than the whole screen
+    screenshot_raw(search_coordinates.0, search_coordinates.1)
+        .par_chunks(4)
+        .position_first(|pixel| (pixel[0], pixel[1], pixel[2]) == (color.r(), color.g(), color.b()))
+        .map(|index| ((index % width) as i32, (index / width) as i32))
+}
+
+pub fn get_color_under_mouse() -> Color32 {
+    unsafe {
+        let dc_screen = GetDC(null_mut());
+        let mut point: POINT = zeroed();
+        GetCursorPos(&mut point);
+
+        let color = GetPixel(dc_screen, point.x, point.y);
+        ReleaseDC(null_mut(), dc_screen);
+
+        Color32::from_rgba_premultiplied(GetRValue(color), GetGValue(color), GetBValue(color), 255)
+    }
+}

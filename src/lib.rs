@@ -181,6 +181,7 @@ fn execute_keyboard_action(key_code: i32, state: KeyState) {
 
 pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
     let mut counter = 0;
+
     while counter < settings.repeat_times || settings.repeat_times == 0 {
         let mut if_stack: Vec<bool> = vec![];
         for (count, action) in action_list.iter().enumerate() {
@@ -238,8 +239,10 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
 
                 Action::WaitForImage(image_info) => execute_wait_for_image(image_info),
                 Action::IfImage(image_info) => if_stack.push(execute_if_image(image_info)),
-                Action::Else => {}
-                Action::EndIf => {}
+                Action::IfPixel(pixel_info) => if_stack.push(execute_if_pixel(pixel_info)),
+                Action::WaitForPixel(pixel_info) => execute_wait_for_pixel(pixel_info),
+
+                Action::Else | Action::EndIf => {}
             }
         }
 
@@ -266,26 +269,38 @@ fn execute_if_image(image: &ImageInfo) -> bool {
         _ => None,
     };
 
-    let (difference, (x, y)) =
+    let (similarity, (x, y)) =
         find_image(image.screenshot_raw.as_ref().unwrap(), search_coordinates);
 
-    println!("{}", difference);
+    println!("{}", similarity);
 
     if image.check_if_not_found {
-        if difference > image.image_similarity {
+        if similarity < image.image_similarity {
             true
         } else {
             false
         }
     } else {
-        if difference <= image.image_similarity {
-            println!("{difference}");
+        if similarity >= image.image_similarity {
+            println!("{similarity}");
             if image.move_mouse_if_found {
                 unsafe { SetCursorPos(x, y) };
             }
             true
         } else {
             false
+        }
+    }
+}
+
+fn execute_if_pixel(pixel_info: &PixelInfo) -> bool {
+    todo!()
+}
+
+fn execute_wait_for_pixel(pixel_info: &PixelInfo) {
+    loop {
+        if stop_key_pressed() || execute_if_pixel(pixel_info) {
+            break;
         }
     }
 }

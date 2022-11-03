@@ -2,6 +2,7 @@ pub mod delay_modify_command_window;
 pub mod image_modify_command_window;
 pub mod keyboard_command_window;
 pub mod mouse_modify_command_window;
+pub mod pixel_modify_command_window;
 
 use std::rc::Rc;
 
@@ -13,6 +14,7 @@ use self::delay_modify_command_window::DelayModifyCommandWindow;
 use self::image_modify_command_window::{ImageModifyCommandWindow, ImageWindowType};
 use self::keyboard_command_window::KeyboardModifyCommandWindow;
 use self::mouse_modify_command_window::MouseModifyCommandWindow;
+use self::pixel_modify_command_window::{PixelModifyCommandWindow, PixelWindowType};
 
 impl Action {
     pub fn get_modify_command_window(
@@ -52,8 +54,22 @@ impl Action {
                 ctx,
                 ImageWindowType::If,
             ))),
-            Self::Else => None,
-            Self::EndIf => None,
+
+            Self::IfPixel(pixel_info) => Some(Rc::new(PixelModifyCommandWindow::new(
+                pixel_info,
+                creating_command,
+                position,
+                PixelWindowType::If,
+            ))),
+
+            Self::WaitForPixel(pixel_info) => Some(Rc::new(PixelModifyCommandWindow::new(
+                pixel_info,
+                creating_command,
+                position,
+                PixelWindowType::If,
+            ))),
+
+            Self::Else | Self::EndIf => None,
         }
     }
 }

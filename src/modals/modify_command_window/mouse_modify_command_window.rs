@@ -413,10 +413,10 @@ impl MouseModifyCommandWindow {
     }
 }
 
-pub fn capture_mouse_position_key_pressed() -> bool {
+fn capture_mouse_position_key_pressed() -> bool {
     unsafe { GetAsyncKeyState(VK_F2) < 0 }
 }
 
-pub fn minimize_window_key_pressed() -> bool {
+fn minimize_window_key_pressed() -> bool {
     unsafe { GetAsyncKeyState(VK_F3) < 0 }
 }

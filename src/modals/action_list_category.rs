@@ -14,7 +14,9 @@ pub enum ActionListCategory {
 enum SubCategory {
     Delay,
     WaitForImage,
+    WaitForPixel,
     IfImage,
+    IfPixel,
     Else,
     EndIf,
 }
@@ -23,8 +25,8 @@ impl ActionListCategory {
     fn get_categories(&self) -> &[SubCategory] {
         use SubCategory::*;
         match *self {
-            ActionListCategory::Wait => &[Delay, WaitForImage],
-            ActionListCategory::If => &[IfImage, Else, EndIf],
+            ActionListCategory::Wait => &[Delay, WaitForImage, WaitForPixel],
+            ActionListCategory::If => &[IfImage, IfPixel, Else, EndIf],
         }
     }
 }
@@ -35,7 +37,9 @@ impl SubCategory {
         match *self {
             Delay => Action::Delay(0),
             WaitForImage => Action::WaitForImage(Default::default()),
+            WaitForPixel => Action::WaitForPixel(Default::default()),
             IfImage => Action::IfImage(Default::default()),
+            IfPixel => Action::IfPixel(Default::default()),
             Else => Action::Else,
             EndIf => Action::EndIf,
         }
@@ -48,7 +52,9 @@ impl ToString for SubCategory {
         match *self {
             Delay => "Delay".into(),
             WaitForImage => "Wait For Image".into(),
+            WaitForPixel => "Wait For Pixel".into(),
             IfImage => "If Image Found".into(),
+            IfPixel => "If Pixel Found".into(),
             Else => "Else".into(),
             EndIf => "End If".into(),
         }

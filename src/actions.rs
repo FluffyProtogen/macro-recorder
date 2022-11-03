@@ -1,3 +1,4 @@
+use egui::Color32;
 use serde::*;
 
 use crate::{images::RawScreenshotPair, keycodes_to_string::key_code_to_string};
@@ -35,6 +36,8 @@ pub enum Action {
     Keyboard(i32, KeyState),
     WaitForImage(ImageInfo),
     IfImage(ImageInfo),
+    WaitForPixel(PixelInfo),
+    IfPixel(PixelInfo),
     Else,
     EndIf,
 }
@@ -44,6 +47,13 @@ pub enum KeyState {
     Down,
     Up,
     Pressed,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct PixelInfo {
+    color: (u8, u8, u8),
+    search_location_left_top: (i32, i32),
+    search_location_width_height: (i32, i32),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -64,7 +74,7 @@ impl Default for ImageInfo {
             check_if_not_found: false,
             search_location_left_top: None,
             search_location_width_height: None,
-            image_similarity: 0.03,
+            image_similarity: 0.97,
         }
     }
 }
@@ -132,6 +142,8 @@ impl Action {
             ],
             Self::Else => ["Else".into(), "".into(), "".into()],
             Self::EndIf => ["End If".into(), "".into(), "".into()],
+            Self::IfPixel(info) => ["If pixel".into(), "".into(), "".into()],
+            Self::WaitForPixel(info) => ["Wait For Pixel".into(), "".into(), "".into()],
         }
     }
 }
