@@ -9,7 +9,7 @@ pub mod settings;
 use actions::*;
 use chrono::{DateTime, Utc};
 use egui::pos2;
-use images::find_image;
+use images::{find_image, find_pixel};
 use settings::Settings;
 use std::{
     error::Error,
@@ -294,7 +294,29 @@ fn execute_if_image(image: &ImageInfo) -> bool {
 }
 
 fn execute_if_pixel(pixel_info: &PixelInfo) -> bool {
-    todo!()
+    let corner1 = pos2(
+        pixel_info.search_location_left_top.0 as f32,
+        pixel_info.search_location_left_top.1 as f32,
+    );
+    let corner2 = pos2(
+        corner1.x + pixel_info.search_location_width_height.0 as f32,
+        corner1.y + pixel_info.search_location_width_height.1 as f32,
+    );
+
+    let result = find_pixel((corner1, corner2), pixel_info.color);
+
+    if pixel_info.check_if_not_found {
+        result.is_none()
+    } else {
+        if let Some(result) = result {
+            if pixel_info.move_mouse_if_found {
+                unsafe { SetCursorPos(result.0, result.1) };
+            }
+            true
+        } else {
+            false
+        }
+    }
 }
 
 fn execute_wait_for_pixel(pixel_info: &PixelInfo) {

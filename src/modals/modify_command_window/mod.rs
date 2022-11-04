@@ -66,7 +66,7 @@ impl Action {
                 pixel_info,
                 creating_command,
                 position,
-                PixelWindowType::If,
+                PixelWindowType::Wait,
             ))),
 
             Self::Else | Self::EndIf => None,

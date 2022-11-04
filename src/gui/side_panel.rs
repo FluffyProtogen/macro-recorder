@@ -58,7 +58,9 @@ impl Recorder {
                 ui.with_layout(Layout::top_down(Align::TOP), |ui| {
                     ui.allocate_space(vec2(65.0, 50.0));
 
-                    if ui.button("Mouse").clicked() {
+                    if ui.button("Mouse").clicked()
+                        || (ui.input().key_pressed(Key::Num1) && !self.are_any_modals_open())
+                    {
                         self.create_action_window(
                             Action::Mouse(MouseActionKind::Moved(Point { x: 0, y: 0 })),
                             screen_dimensions,
@@ -68,7 +70,9 @@ impl Recorder {
 
                     ui.allocate_space(vec2(0.0, 30.0));
 
-                    if ui.button("Key").clicked() {
+                    if ui.button("Key").clicked()
+                        || (ui.input().key_pressed(Key::Num2) && !self.are_any_modals_open())
+                    {
                         self.create_action_window(
                             Action::Keyboard(0x41, KeyState::Pressed),
                             screen_dimensions,
@@ -78,13 +82,17 @@ impl Recorder {
 
                     ui.allocate_space(vec2(0.0, 30.0));
 
-                    if ui.button("Wait").clicked() {
+                    if ui.button("Wait").clicked()
+                        || (ui.input().key_pressed(Key::Num3) && !self.are_any_modals_open())
+                    {
                         self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::Wait)));
                     }
 
                     ui.allocate_space(vec2(0.0, 30.0));
 
-                    if ui.button("If").clicked() {
+                    if ui.button("If").clicked()
+                        || (ui.input().key_pressed(Key::Num4) && !self.are_any_modals_open())
+                    {
                         self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::If)));
                     }
                 });

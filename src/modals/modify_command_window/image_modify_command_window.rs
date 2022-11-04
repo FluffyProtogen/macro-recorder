@@ -1,4 +1,5 @@
 use crate::gui::PIXELS_PER_POINT;
+use crate::images::RawScreenshot;
 use crate::modals::ModalWindow;
 use crate::{
     actions::{Action, ImageInfo},
@@ -9,7 +10,7 @@ use crate::{
     },
 };
 use eframe::egui::*;
-use image::{DynamicImage, ImageBuffer};
+use image::{DynamicImage, EncodableLayout, ImageBuffer};
 use std::cell::RefCell;
 use winapi::um::winuser::{GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN};
 
@@ -22,6 +23,13 @@ pub enum ImageWindowType {
     If,
 }
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum CapturingState {
+    CaptureNextFrame,
+    Capturing,
+    NotCapturing,
+}
+
 pub struct ImageModifyCommandWindow {
     data: RefCell<ImageModifyCommandWindowData>,
 }
@@ -29,7 +37,6 @@ pub struct ImageModifyCommandWindow {
 struct ImageModifyCommandWindowData {
     creating_command: bool,
     position: Option<Pos2>,
-    capturing: bool,
     capture_start: Option<Pos2>,
     capture_end: Option<Pos2>,
     screenshot_raw: Option<RawScreenshotPair>,
@@ -39,10 +46,11 @@ struct ImageModifyCommandWindowData {
     move_mouse_if_found: bool,
     check_if_not_found: bool,
     capturing_screenshot: bool,
-    previous_window_info: Option<(Pos2, Vec2)>,
     enter_lock: bool,
     window_type: ImageWindowType,
-    screenshot_next_frame: bool,
+    full_screen_texture: Option<TextureHandle>,
+    full_screen_image: Option<ImageBuffer<image::Rgba<u8>, Vec<u8>>>,
+    capture_state: CapturingState,
 }
 
 impl ImageModifyCommandWindow {
@@ -68,7 +76,6 @@ impl ImageModifyCommandWindow {
             data: RefCell::new(ImageModifyCommandWindowData {
                 creating_command,
                 position: Some(position),
-                capturing: false,
                 capture_start: None,
                 capture_end: None,
                 screenshot_raw: image_info.screenshot_raw.clone(),
@@ -84,10 +91,11 @@ impl ImageModifyCommandWindow {
                 move_mouse_if_found: image_info.move_mouse_if_found,
                 check_if_not_found: image_info.check_if_not_found,
                 capturing_screenshot: false,
-                previous_window_info: None,
                 enter_lock: true,
-                screenshot_next_frame: false,
                 window_type,
+                full_screen_texture: None,
+                capture_state: CapturingState::NotCapturing,
+                full_screen_image: None,
             }),
         }
     }
@@ -162,160 +170,50 @@ impl ImageModifyCommandWindow {
         }
     }
 
-    fn capture(
+    fn capture_begin(
         data: &mut ImageModifyCommandWindowData,
         frame: &mut eframe::Frame,
         recorder: &mut Recorder,
         capturing_screenshot: bool,
     ) {
-        data.capturing = true;
         data.capturing_screenshot = capturing_screenshot;
-        data.previous_window_info = Some((
-            frame.info().window_info.position.unwrap(),
-            frame.info().window_info.size,
-        ));
+
         frame.set_decorations(false);
-        frame.set_window_pos(pos2(-1.0, 0.0)); // offset by 1 so windows doesn't stop rendering everything behind the window lol
-
-        let (width, height) = unsafe {
-            (
-                GetSystemMetrics(SM_CXVIRTUALSCREEN),
-                GetSystemMetrics(SM_CYVIRTUALSCREEN),
-            )
-        };
-
-        let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
-
-        frame.set_window_size(vec2(
-            (width as f32 / pixels_per_point) + 1.0,
-            height as f32 / pixels_per_point,
-        )); // add 1 to it to compensate
-
         recorder.transparent = true;
         data.capture_start = None;
         data.capture_end = None;
+        data.capture_state = CapturingState::CaptureNextFrame;
+        frame.set_visible(false);
     }
 
     fn draw_capturing_window(
         &self,
-        ui: &mut Ui,
+        _ui: &mut Ui,
         frame: &mut eframe::Frame,
         recorder: &mut Recorder,
         ctx: &Context,
     ) {
-        //make x -1 but make window 1 pixel longer and offest the mouse capture coordinates by 1
+        let mut data = self.data.borrow_mut();
+        let texture = data.full_screen_texture.as_ref().unwrap();
 
-        let screen_size = frame.info().window_info.size;
+        Area::new("Whole Screenshot")
+            .interactable(false)
+            .order(Order::Background)
+            .fixed_pos(pos2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.image(texture, frame.info().window_info.size);
+            });
 
-        let data = &mut self.data.borrow_mut();
-
-        if data.screenshot_next_frame {
-            frame.set_decorations(true);
-            frame.set_fullscreen(false);
-            recorder.transparent = false;
-
-            data.screenshot_next_frame = false;
-
-            let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
-
-            data.capture_start = Some(pos2(
-                ((data.capture_start.unwrap().x) * pixels_per_point).round(),
-                ((data.capture_start.unwrap().y) * pixels_per_point).round(),
-            ));
-
-            data.capture_end = Some(pos2(
-                ((data.capture_end.unwrap().x) * pixels_per_point).round(),
-                ((data.capture_end.unwrap().y) * pixels_per_point).round(),
-            ));
-
-            let capture_start = data.capture_start.unwrap();
-            let capture_end = data.capture_end.unwrap();
-
-            if (capture_start.x - capture_end.x).abs() as i32 != 0
-                && (capture_start.y - capture_end.y).abs() as i32 != 0
-            {
-                if data.capturing_screenshot {
-                    let screenshot = screenshot(capture_start, capture_end);
-                    data.screenshot_texture = Some(ctx.load_texture(
-                        "Screenshot",
-                        screenshot_to_color_image(screenshot.clone()),
-                        TextureFilter::Linear,
-                    ));
-
-                    let gray = DynamicImage::ImageRgba8(
-                        ImageBuffer::from_vec(
-                            screenshot.width as u32,
-                            screenshot.height as u32,
-                            screenshot.clone().pixels, // it's still BGRA
-                        )
-                        .unwrap(),
-                    )
-                    .to_luma8();
-
-                    data.screenshot_raw = Some(RawScreenshotPair {
-                        color: screenshot,
-                        gray: GrayImageSerializable(gray),
-                    })
-                }
-
-                data.search_location_text_edit_texts = Some((
-                    (
-                        lesser(capture_start.x, capture_end.x).to_string(),
-                        lesser(capture_start.y, capture_end.y).to_string(),
-                    ),
-                    (
-                        (capture_start.x - capture_end.x).abs().to_string(),
-                        (capture_start.y - capture_end.y).abs().to_string(),
-                    ),
-                ));
-
-                frame.set_window_size(data.previous_window_info.unwrap().1);
-                frame.set_window_pos(data.previous_window_info.unwrap().0);
-            }
-
-            frame.set_visible(true);
-            data.capturing = false;
-            return;
-        }
-
-        let pointer = ui.input().pointer.clone(); // clone it to avoid a dead lock
-
-        if let (true, Some(pos)) = (pointer.primary_clicked(), pointer.hover_pos()) {
-            data.capture_start = Some(pos);
-        } else if data.capture_start.is_none() {
-            ui.painter().rect_filled(
-                Rect::from_two_pos(
-                    Pos2::ZERO,
-                    Pos2 {
-                        x: frame.info().window_info.size.x,
-                        y: frame.info().window_info.size.x,
-                    },
-                ),
-                Rounding::none(),
-                CAPTURE_COLOR,
-            );
-        }
-
-        if let Some(initial_pos) = data.capture_start {
-            if let (Some(current_pos), true) = (pointer.hover_pos(), pointer.primary_down()) {
-                data.capture_end = Some(current_pos);
-
-                let capture_color = if data.capturing_screenshot {
-                    CAPTURE_COLOR
-                } else {
-                    let screenshot_size = data.screenshot_texture.as_ref().unwrap().size_vec2();
-                    let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
-                    if (initial_pos.x - current_pos.x).abs() * pixels_per_point > screenshot_size.x
-                        && (initial_pos.y - current_pos.y).abs() * pixels_per_point
-                            > screenshot_size.y
-                    {
-                        CAPTURE_COLOR
-                    } else {
-                        INVALID_CAPTURE_COLOR
-                    }
-                };
-
-                if initial_pos.y == current_pos.y {
+        Area::new("Overlay")
+            .interactable(false)
+            .order(Order::Foreground)
+            .fixed_pos(pos2(0.0, 0.0))
+            .show(ctx, |ui| {
+                let screen_size = frame.info().window_info.size;
+                let pointer = ui.input().pointer.clone(); // clone it to avoid a dead lock
+                if let (true, Some(pos)) = (pointer.primary_clicked(), pointer.hover_pos()) {
+                    data.capture_start = Some(pos);
+                } else if data.capture_start.is_none() {
                     ui.painter().rect_filled(
                         Rect::from_two_pos(
                             Pos2::ZERO,
@@ -325,52 +223,394 @@ impl ImageModifyCommandWindow {
                             },
                         ),
                         Rounding::none(),
-                        capture_color,
-                    );
-                } else {
-                    ui.painter().rect_filled(
-                        Rect::from_x_y_ranges(
-                            0.0..=lesser(initial_pos.x, current_pos.x),
-                            lesser(initial_pos.y, current_pos.y)
-                                ..=greater(initial_pos.y, current_pos.y),
-                        ),
-                        Rounding::none(),
-                        capture_color,
-                    );
-
-                    ui.painter().rect_filled(
-                        Rect::from_x_y_ranges(
-                            greater(initial_pos.x, current_pos.x)..=screen_size.x,
-                            lesser(initial_pos.y, current_pos.y)
-                                ..=greater(initial_pos.y, current_pos.y),
-                        ),
-                        Rounding::none(),
-                        capture_color,
-                    );
-
-                    ui.painter().rect_filled(
-                        Rect::from_x_y_ranges(
-                            0.0..=screen_size.x,
-                            0.0..=lesser(initial_pos.y, current_pos.y),
-                        ),
-                        Rounding::none(),
-                        capture_color,
-                    );
-
-                    ui.painter().rect_filled(
-                        Rect::from_x_y_ranges(
-                            0.0..=screen_size.x,
-                            greater(initial_pos.y, current_pos.y)..=screen_size.y,
-                        ),
-                        Rounding::none(),
-                        capture_color,
+                        CAPTURE_COLOR,
                     );
                 }
-            } else {
-                data.screenshot_next_frame = true;
-                frame.set_visible(false);
-            }
+
+                if let Some(initial_pos) = data.capture_start {
+                    if let (Some(current_pos), true) = (pointer.hover_pos(), pointer.primary_down())
+                    {
+                        data.capture_end = Some(current_pos);
+
+                        let capture_color = if data.capturing_screenshot {
+                            CAPTURE_COLOR
+                        } else {
+                            let screenshot_size =
+                                data.screenshot_texture.as_ref().unwrap().size_vec2();
+                            let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
+                            if (initial_pos.x - current_pos.x).abs() * pixels_per_point
+                                > screenshot_size.x
+                                && (initial_pos.y - current_pos.y).abs() * pixels_per_point
+                                    > screenshot_size.y
+                            {
+                                CAPTURE_COLOR
+                            } else {
+                                INVALID_CAPTURE_COLOR
+                            }
+                        };
+
+                        if initial_pos.y == current_pos.y {
+                            ui.painter().rect_filled(
+                                Rect::from_two_pos(
+                                    Pos2::ZERO,
+                                    Pos2 {
+                                        x: frame.info().window_info.size.x,
+                                        y: frame.info().window_info.size.x,
+                                    },
+                                ),
+                                Rounding::none(),
+                                capture_color,
+                            );
+                        } else {
+                            ui.painter().rect_filled(
+                                Rect::from_x_y_ranges(
+                                    0.0..=lesser(initial_pos.x, current_pos.x),
+                                    lesser(initial_pos.y, current_pos.y)
+                                        ..=greater(initial_pos.y, current_pos.y),
+                                ),
+                                Rounding::none(),
+                                capture_color,
+                            );
+
+                            ui.painter().rect_filled(
+                                Rect::from_x_y_ranges(
+                                    greater(initial_pos.x, current_pos.x)..=screen_size.x,
+                                    lesser(initial_pos.y, current_pos.y)
+                                        ..=greater(initial_pos.y, current_pos.y),
+                                ),
+                                Rounding::none(),
+                                capture_color,
+                            );
+
+                            ui.painter().rect_filled(
+                                Rect::from_x_y_ranges(
+                                    0.0..=screen_size.x,
+                                    0.0..=lesser(initial_pos.y, current_pos.y),
+                                ),
+                                Rounding::none(),
+                                capture_color,
+                            );
+
+                            ui.painter().rect_filled(
+                                Rect::from_x_y_ranges(
+                                    0.0..=screen_size.x,
+                                    greater(initial_pos.y, current_pos.y)..=screen_size.y,
+                                ),
+                                Rounding::none(),
+                                capture_color,
+                            );
+                        }
+                    } else {
+                        let pixels_per_point = PIXELS_PER_POINT.get().unwrap();
+                        let capture_start = data.capture_start.unwrap();
+                        let capture_start = pos2(
+                            capture_start.x * pixels_per_point,
+                            capture_start.y * pixels_per_point,
+                        );
+
+                        let capture_end = data.capture_end.unwrap();
+                        let capture_end = pos2(
+                            capture_end.x * pixels_per_point,
+                            capture_end.y * pixels_per_point,
+                        );
+
+                        if (capture_start.x - capture_end.x).abs() as i32 != 0
+                            && (capture_start.y - capture_end.y).abs() as i32 != 0
+                        {
+                            if data.capturing_screenshot {
+                                let mut image = data.full_screen_image.take().unwrap();
+                                let cropped = image::imageops::crop(
+                                    &mut image,
+                                    lesser(capture_start.x, capture_end.x) as u32,
+                                    lesser(capture_start.y, capture_end.y) as u32,
+                                    (capture_start.x - capture_end.x).abs() as u32,
+                                    (capture_start.y - capture_end.y).abs() as u32,
+                                )
+                                .to_image();
+
+                                let raw_pair = RawScreenshotPair {
+                                    color: RawScreenshot {
+                                        pixels: cropped.clone().as_bytes().to_vec(),
+                                        width: cropped.width() as usize,
+                                        height: cropped.height() as usize,
+                                        x: lesser(capture_start.x, capture_end.x) as i32,
+                                        y: lesser(capture_start.y, capture_end.y) as i32,
+                                    },
+                                    gray: GrayImageSerializable(
+                                        DynamicImage::ImageRgba8(cropped).to_luma8(),
+                                    ),
+                                };
+
+                                data.screenshot_raw = Some(raw_pair);
+
+                                data.screenshot_texture = Some(ctx.load_texture(
+                                    "Screenshot",
+                                    screenshot_to_color_image(
+                                        data.screenshot_raw.as_ref().unwrap().color.clone(),
+                                    ),
+                                    TextureFilter::Linear,
+                                ));
+                            }
+                            data.search_location_text_edit_texts = Some((
+                                (
+                                    lesser(capture_start.x, capture_end.x).to_string(),
+                                    lesser(capture_start.y, capture_end.y).to_string(),
+                                ),
+                                (
+                                    (capture_start.x - capture_end.x).abs().to_string(),
+                                    (capture_start.y - capture_end.y).abs().to_string(),
+                                ),
+                            ));
+                        }
+
+                        data.full_screen_texture = None;
+                        data.capture_state = CapturingState::NotCapturing;
+                        frame.set_fullscreen(false);
+                        frame.set_decorations(true);
+                        recorder.transparent = false;
+                    }
+                }
+            });
+    }
+}
+
+impl ImageModifyCommandWindow {
+    fn screenshot_this_frame(&self, ctx: &Context, frame: &mut eframe::Frame) {
+        let mut data = self.data.borrow_mut();
+        let (corner1, corner2) = unsafe {
+            (
+                GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                GetSystemMetrics(SM_CYVIRTUALSCREEN),
+            )
+        };
+        let (corner1, corner2) = (pos2(0.0, 0.0), pos2(corner1 as f32, corner2 as f32));
+
+        let screenshot = screenshot(corner1, corner2);
+
+        data.full_screen_texture = Some(ctx.load_texture(
+            "Screenshot Fullscreen",
+            screenshot_to_color_image(screenshot.clone()),
+            TextureFilter::Linear,
+        ));
+
+        let buffer = image::ImageBuffer::<image::Rgba<u8>, _>::from_vec(
+            screenshot.width as u32,
+            screenshot.height as u32,
+            screenshot.pixels,
+        );
+
+        data.full_screen_image = Some(buffer.unwrap());
+
+        data.capture_state = CapturingState::Capturing;
+
+        frame.set_visible(true);
+        frame.set_fullscreen(true);
+    }
+
+    fn not_capturing(
+        &self,
+        drag_bounds: Rect,
+        recorder: &mut Recorder,
+        ctx: &Context,
+        frame: &mut eframe::Frame,
+        ui: &mut Ui,
+    ) {
+        let window = self.setup(drag_bounds);
+        let data = &mut self.data.borrow_mut();
+
+        if ui.input().key_pressed(Key::Escape) {
+            self.cancel(data, recorder);
         }
+
+        window.show(ctx, |ui| {
+            ui.allocate_space(vec2(0.0, 15.0));
+
+            if let Some(texture) = &data.screenshot_texture {
+                ui.painter().rect_filled(
+                    Rect::from_x_y_ranges(
+                        *ui.cursor().x_range().start()
+                            ..=(ui.cursor().x_range().start() + IMAGE_PANEL_IMAGE_SIZE),
+                        *ui.cursor().y_range().start()
+                            ..=(ui.cursor().y_range().start() + IMAGE_PANEL_IMAGE_SIZE),
+                    ),
+                    Rounding::none(),
+                    Color32::from_rgba_premultiplied(217, 217, 217, 255),
+                );
+
+                let texture_size = texture.size_vec2();
+
+                let (width, height) = if texture_size.x > texture_size.y {
+                    let scale_factor = IMAGE_PANEL_IMAGE_SIZE / texture_size.x;
+                    (texture_size.x * scale_factor, texture_size.y * scale_factor)
+                } else {
+                    let scale_factor = IMAGE_PANEL_IMAGE_SIZE / texture_size.y;
+                    (texture_size.x * scale_factor, texture_size.y * scale_factor)
+                };
+
+                ui.allocate_space(vec2(0.0, (IMAGE_PANEL_IMAGE_SIZE - height) / 2.0));
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.allocate_space(vec2((IMAGE_PANEL_IMAGE_SIZE - width) / 2.0, 0.0));
+                    ui.image(texture, vec2(width, height));
+                    ui.allocate_space(vec2((IMAGE_PANEL_IMAGE_SIZE - width) / 2.0, 0.0));
+                });
+                ui.allocate_space(vec2(0.0, (IMAGE_PANEL_IMAGE_SIZE - height) / 2.0));
+            }
+
+            ui.allocate_space(vec2(0.0, 15.0));
+
+            ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                ui.allocate_space(vec2(45.0, 0.0));
+
+                if ui.button("Select Image").clicked() {
+                    Self::capture_begin(data, frame, recorder, true);
+                }
+            });
+
+            if data.screenshot_texture.is_some() {
+                ui.allocate_space(vec2(0.0, 15.0));
+
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.allocate_space(vec2(45.0, 0.0));
+
+                    TextEdit::singleline(&mut data.max_difference_text_edit_text)
+                        .desired_width(50.0)
+                        .ui(ui);
+                    ui.allocate_space(vec2(5.0, 0.0));
+                    ui.label("Similarity (1 means identical; 0.97 recommended)");
+                });
+
+                ui.allocate_space(vec2(0.0, 15.0));
+
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.allocate_space(vec2(45.0, 0.0));
+
+                    ui.checkbox(&mut data.move_mouse_if_found, "");
+                    ui.label("Move mouse to center of image if found");
+                });
+
+                ui.allocate_space(vec2(0.0, 15.0));
+
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.allocate_space(vec2(45.0, 0.0));
+
+                    ui.checkbox(&mut data.check_if_not_found, "");
+                    ui.label("Check if image is not found");
+                });
+
+                ui.allocate_space(vec2(0.0, 15.0));
+
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.allocate_space(vec2(45.0, 0.0));
+
+                    if ui
+                        .add(Checkbox::new(
+                            &mut data.search_location_text_edit_texts.is_none(),
+                            "",
+                        ))
+                        .clicked()
+                    {
+                        if data.search_location_text_edit_texts.is_none() {
+                            data.search_location_text_edit_texts = Some((
+                                (String::new(), String::new()),
+                                (String::new(), String::new()),
+                            ));
+                        } else {
+                            data.search_location_text_edit_texts = None;
+                        }
+                    }
+                    ui.label("Search the whole screen for the image");
+                });
+
+                ui.allocate_space(vec2(0.0, 15.0));
+
+                if data.search_location_text_edit_texts.is_some() {
+                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                        let location = &mut data.search_location_text_edit_texts.as_mut().unwrap();
+                        ui.allocate_space(vec2(45.0, 0.0));
+
+                        ui.label("Left: ");
+                        TextEdit::singleline(&mut location.0 .0)
+                            .desired_width(50.0)
+                            .ui(ui);
+                        ui.allocate_space(vec2(5.0, 0.1));
+
+                        ui.label("Top: ");
+                        TextEdit::singleline(&mut location.0 .1)
+                            .desired_width(50.0)
+                            .ui(ui);
+                        ui.allocate_space(vec2(5.0, 0.0));
+
+                        ui.label("Width: ");
+                        TextEdit::singleline(&mut location.1 .0)
+                            .desired_width(50.0)
+                            .ui(ui);
+                        ui.allocate_space(vec2(5.0, 0.0));
+
+                        ui.label("Height: ");
+                        TextEdit::singleline(&mut location.1 .1)
+                            .desired_width(50.0)
+                            .ui(ui);
+                        ui.allocate_space(vec2(15.0, 0.0));
+
+                        if ui.button("Select Area").clicked() {
+                            Self::capture_begin(data, frame, recorder, false);
+                        }
+                    });
+
+                    ui.allocate_space(vec2(0.0, 15.0));
+                }
+
+                if ui.button("Check if image is found").clicked() {
+                    if let Some(text) = &data.search_location_text_edit_texts {
+                        let start = match (text.0 .0.parse(), text.0 .1.parse()) {
+                            (Ok(x), Ok(y)) => Some(pos2(x, y)),
+                            _ => None,
+                        };
+                        let width_height = match (text.1 .0.parse(), text.1 .1.parse()) {
+                            (Ok(x), Ok(y)) => Some(pos2(x, y)),
+                            _ => None,
+                        };
+
+                        if let (Some(start), Some(width_height)) = (start, width_height) {
+                            let end = pos2(start.x + width_height.x, start.y + width_height.y);
+                            find_image(data.screenshot_raw.as_ref().unwrap(), Some((start, end)));
+                        }
+                    } else {
+                        find_image(data.screenshot_raw.as_ref().unwrap(), None);
+                    };
+                }
+
+                if ui.input().key_down(Key::Enter) {
+                    if !data.enter_lock {
+                        self.save(data, recorder);
+                    }
+                } else {
+                    data.enter_lock = false;
+                }
+
+                ui.allocate_space(vec2(0.0, 15.0));
+
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.add_space(35.0);
+                    if ui.button("Cancel").clicked() {
+                        self.cancel(data, recorder);
+                    }
+                    ui.add_space(35.0);
+                    if ui.button("Save").clicked() {
+                        self.save(data, recorder);
+                    }
+                });
+            } else {
+                ui.allocate_space(vec2(0.0, 15.0));
+
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.add_space(35.0);
+                    if ui.button("Cancel").clicked() {
+                        self.cancel(data, recorder);
+                    }
+                });
+            }
+        });
     }
 }
 
@@ -383,209 +623,13 @@ impl ModalWindow for ImageModifyCommandWindow {
         drag_bounds: Rect,
         frame: &mut eframe::Frame,
     ) {
-        if self.data.borrow().capturing {
-            self.draw_capturing_window(ui, frame, recorder, ctx);
-        } else {
-            let window = self.setup(drag_bounds);
-            let data = &mut self.data.borrow_mut();
-
-            if ui.input().key_pressed(Key::Escape) {
-                self.cancel(data, recorder);
+        let state = self.data.borrow().capture_state;
+        match state {
+            CapturingState::CaptureNextFrame => self.screenshot_this_frame(ctx, frame),
+            CapturingState::Capturing => self.draw_capturing_window(ui, frame, recorder, ctx),
+            CapturingState::NotCapturing => {
+                self.not_capturing(drag_bounds, recorder, ctx, frame, ui)
             }
-
-            window.show(ctx, |ui| {
-                ui.allocate_space(vec2(0.0, 15.0));
-
-                if let Some(texture) = &data.screenshot_texture {
-                    ui.painter().rect_filled(
-                        Rect::from_x_y_ranges(
-                            *ui.cursor().x_range().start()
-                                ..=(ui.cursor().x_range().start() + IMAGE_PANEL_IMAGE_SIZE),
-                            *ui.cursor().y_range().start()
-                                ..=(ui.cursor().y_range().start() + IMAGE_PANEL_IMAGE_SIZE),
-                        ),
-                        Rounding::none(),
-                        Color32::from_rgba_premultiplied(217, 217, 217, 255),
-                    );
-
-                    let texture_size = texture.size_vec2();
-
-                    let (width, height) = if texture_size.x > texture_size.y {
-                        let scale_factor = IMAGE_PANEL_IMAGE_SIZE / texture_size.x;
-                        (texture_size.x * scale_factor, texture_size.y * scale_factor)
-                    } else {
-                        let scale_factor = IMAGE_PANEL_IMAGE_SIZE / texture_size.y;
-                        (texture_size.x * scale_factor, texture_size.y * scale_factor)
-                    };
-
-                    ui.allocate_space(vec2(0.0, (IMAGE_PANEL_IMAGE_SIZE - height) / 2.0));
-                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                        ui.allocate_space(vec2((IMAGE_PANEL_IMAGE_SIZE - width) / 2.0, 0.0));
-                        ui.image(texture, vec2(width, height));
-                        ui.allocate_space(vec2((IMAGE_PANEL_IMAGE_SIZE - width) / 2.0, 0.0));
-                    });
-                    ui.allocate_space(vec2(0.0, (IMAGE_PANEL_IMAGE_SIZE - height) / 2.0));
-                }
-
-                ui.allocate_space(vec2(0.0, 15.0));
-
-                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                    ui.allocate_space(vec2(45.0, 0.0));
-
-                    if ui.button("Select Image").clicked() {
-                        Self::capture(data, frame, recorder, true);
-                    }
-                });
-
-                if data.screenshot_texture.is_some() {
-                    ui.allocate_space(vec2(0.0, 15.0));
-
-                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                        ui.allocate_space(vec2(45.0, 0.0));
-
-                        TextEdit::singleline(&mut data.max_difference_text_edit_text)
-                            .desired_width(50.0)
-                            .ui(ui);
-                        ui.allocate_space(vec2(5.0, 0.0));
-                        ui.label("Similarity (1 means identical; 0.97 recommended)");
-                    });
-
-                    ui.allocate_space(vec2(0.0, 15.0));
-
-                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                        ui.allocate_space(vec2(45.0, 0.0));
-
-                        ui.checkbox(&mut data.move_mouse_if_found, "");
-                        ui.label("Move mouse to center of image if found");
-                    });
-
-                    ui.allocate_space(vec2(0.0, 15.0));
-
-                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                        ui.allocate_space(vec2(45.0, 0.0));
-
-                        ui.checkbox(&mut data.check_if_not_found, "");
-                        ui.label("Check if image is not found");
-                    });
-
-                    ui.allocate_space(vec2(0.0, 15.0));
-
-                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                        ui.allocate_space(vec2(45.0, 0.0));
-
-                        if ui
-                            .add(Checkbox::new(
-                                &mut data.search_location_text_edit_texts.is_none(),
-                                "",
-                            ))
-                            .clicked()
-                        {
-                            if data.search_location_text_edit_texts.is_none() {
-                                data.search_location_text_edit_texts = Some((
-                                    (String::new(), String::new()),
-                                    (String::new(), String::new()),
-                                ));
-                            } else {
-                                data.search_location_text_edit_texts = None;
-                            }
-                        }
-                        ui.label("Search the whole screen for the image");
-                    });
-
-                    ui.allocate_space(vec2(0.0, 15.0));
-
-                    if data.search_location_text_edit_texts.is_some() {
-                        ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                            let location =
-                                &mut data.search_location_text_edit_texts.as_mut().unwrap();
-                            ui.allocate_space(vec2(45.0, 0.0));
-
-                            ui.label("Left: ");
-                            TextEdit::singleline(&mut location.0 .0)
-                                .desired_width(50.0)
-                                .ui(ui);
-                            ui.allocate_space(vec2(5.0, 0.1));
-
-                            ui.label("Top: ");
-                            TextEdit::singleline(&mut location.0 .1)
-                                .desired_width(50.0)
-                                .ui(ui);
-                            ui.allocate_space(vec2(5.0, 0.0));
-
-                            ui.label("Width: ");
-                            TextEdit::singleline(&mut location.1 .0)
-                                .desired_width(50.0)
-                                .ui(ui);
-                            ui.allocate_space(vec2(5.0, 0.0));
-
-                            ui.label("Height: ");
-                            TextEdit::singleline(&mut location.1 .1)
-                                .desired_width(50.0)
-                                .ui(ui);
-                            ui.allocate_space(vec2(15.0, 0.0));
-
-                            if ui.button("Select Area").clicked() {
-                                Self::capture(data, frame, recorder, false);
-                            }
-                        });
-
-                        ui.allocate_space(vec2(0.0, 15.0));
-                    }
-
-                    if ui.button("Check if image is found").clicked() {
-                        if let Some(text) = &data.search_location_text_edit_texts {
-                            let start = match (text.0 .0.parse(), text.0 .1.parse()) {
-                                (Ok(x), Ok(y)) => Some(pos2(x, y)),
-                                _ => None,
-                            };
-                            let width_height = match (text.1 .0.parse(), text.1 .1.parse()) {
-                                (Ok(x), Ok(y)) => Some(pos2(x, y)),
-                                _ => None,
-                            };
-
-                            if let (Some(start), Some(width_height)) = (start, width_height) {
-                                let end = pos2(start.x + width_height.x, start.y + width_height.y);
-                                find_image(
-                                    data.screenshot_raw.as_ref().unwrap(),
-                                    Some((start, end)),
-                                );
-                            }
-                        } else {
-                            find_image(data.screenshot_raw.as_ref().unwrap(), None);
-                        };
-                    }
-
-                    if ui.input().key_down(Key::Enter) {
-                        if !data.enter_lock {
-                            self.save(data, recorder);
-                        }
-                    } else {
-                        data.enter_lock = false;
-                    }
-
-                    ui.allocate_space(vec2(0.0, 15.0));
-
-                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                        ui.add_space(35.0);
-                        if ui.button("Cancel").clicked() {
-                            self.cancel(data, recorder);
-                        }
-                        ui.add_space(35.0);
-                        if ui.button("Save").clicked() {
-                            self.save(data, recorder);
-                        }
-                    });
-                } else {
-                    ui.allocate_space(vec2(0.0, 15.0));
-
-                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                        ui.add_space(35.0);
-                        if ui.button("Cancel").clicked() {
-                            self.cancel(data, recorder);
-                        }
-                    });
-                }
-            });
         }
     }
 }

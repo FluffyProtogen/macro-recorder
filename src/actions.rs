@@ -51,9 +51,11 @@ pub enum KeyState {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct PixelInfo {
-    color: (u8, u8, u8),
-    search_location_left_top: (i32, i32),
-    search_location_width_height: (i32, i32),
+    pub color: (u8, u8, u8),
+    pub search_location_left_top: (i32, i32),
+    pub search_location_width_height: (i32, i32),
+    pub check_if_not_found: bool,
+    pub move_mouse_if_found: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -142,8 +144,32 @@ impl Action {
             ],
             Self::Else => ["Else".into(), "".into(), "".into()],
             Self::EndIf => ["End If".into(), "".into(), "".into()],
-            Self::IfPixel(info) => ["If pixel".into(), "".into(), "".into()],
-            Self::WaitForPixel(info) => ["Wait For Pixel".into(), "".into(), "".into()],
+            Self::IfPixel(info) => [
+                "If pixel".into(),
+                if info.check_if_not_found {
+                    "If pixel not found".into()
+                } else {
+                    "If pixel found".into()
+                },
+                if info.move_mouse_if_found {
+                    "Move mouse to center if found".into()
+                } else {
+                    "".into()
+                },
+            ],
+            Self::WaitForPixel(info) => [
+                "Wait For Pixel".into(),
+                if info.check_if_not_found {
+                    "Wait for no pixel".into()
+                } else {
+                    "Wait for pixel".into()
+                },
+                if info.move_mouse_if_found {
+                    "Move mouse to center if found".into()
+                } else {
+                    "".into()
+                },
+            ],
         }
     }
 }

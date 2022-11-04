@@ -10,7 +10,7 @@ use serde::ser::SerializeStruct;
 use std::ffi::c_void;
 use std::mem::zeroed;
 use std::ptr::null_mut;
-use winapi::shared::windef::{LPPOINT, POINT};
+use winapi::shared::windef::POINT;
 use winapi::um::{wingdi::*, winuser::*};
 
 const RESIZE_FACTOR: u32 = 3;
@@ -343,19 +343,26 @@ pub fn find_image(
     (result.max_value, (found_x, found_y))
 }
 
-pub fn find_pixel(search_coordinates: (Pos2, Pos2), color: Color32) -> Option<(i32, i32)> {
+pub fn find_pixel(search_coordinates: (Pos2, Pos2), color: (u8, u8, u8)) -> Option<(i32, i32)> {
     let width = (search_coordinates.0.x - search_coordinates.1.x).abs() as usize;
 
     screenshot_raw(search_coordinates.0, search_coordinates.1)
         .par_chunks(4)
-        .position_first(|pixel| (pixel[0], pixel[1], pixel[2]) == (color.r(), color.g(), color.b()))
-        .map(|index| ((index % width) as i32, (index / width) as i32))
+        .position_first(|pixel| (pixel[2], pixel[1], pixel[0]) == (color.0, color.1, color.2))
+        .map(|index| {
+            (
+                (index % width) as i32
+                    + lesser(search_coordinates.0.x, search_coordinates.1.x) as i32,
+                (index / width) as i32
+                    + lesser(search_coordinates.0.y, search_coordinates.1.y) as i32,
+            )
+        })
 }
 
 pub fn get_color_under_mouse() -> Color32 {
     unsafe {
         let dc_screen = GetDC(null_mut());
-        let mut point: POINT = zeroed();
+        let mut point = zeroed();
         GetCursorPos(&mut point);
 
         let color = GetPixel(dc_screen, point.x, point.y);

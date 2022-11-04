@@ -1,6 +1,7 @@
 //#![windows_subsystem = "windows"]
 use eframe::*;
 use egui::vec2;
+use lazy_static::lazy_static;
 use macro_recorder::*;
 
 /*
