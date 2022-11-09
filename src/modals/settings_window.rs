@@ -96,20 +96,7 @@ impl ModalWindow for SettingsWindow {
                     if let Ok(repeats) = data.replay_textedit_text.parse::<u32>() {
                         data.temp_settings.repeat_times = repeats;
                         recorder.settings = data.temp_settings.clone();
-                        recorder.modal = None;
-
-                        let save_result = settings::save_settings_file(&data.temp_settings);
-
-                        if let Err(error) = save_result {
-                            recorder.modal = Some(DefaultErrorWindow::new(
-                                "Settings Error".into(),
-                                vec![
-                                    "Error saving settings to file:".into(),
-                                    error.to_string(),
-                                    "The macro recorder will still function, but the settings will not be saved at next startup.".into()
-                                ],
-                            ));
-                        }
+                        recorder.modal = data.temp_settings.save_with_error_window();
                     }
                 }
             });

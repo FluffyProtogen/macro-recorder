@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod gui;
+pub mod hotkeys;
 pub mod images;
 pub mod keycodes_to_string;
 pub mod modals;
@@ -20,6 +21,8 @@ use std::{
 };
 
 use winapi::um::winuser::*;
+
+use crate::images::fast_find_image;
 
 fn execute_mouse_action(action: &MouseActionButton) {
     if action.state == MouseActionButtonState::Pressed
@@ -269,8 +272,11 @@ fn execute_if_image(image: &ImageInfo) -> bool {
         _ => None,
     };
 
-    let (similarity, (x, y)) =
-        find_image(image.screenshot_raw.as_ref().unwrap(), search_coordinates);
+    let (similarity, (x, y)) = if image.image_similarity == 1.0 {
+        fast_find_image(image.screenshot_raw.as_ref().unwrap(), search_coordinates)
+    } else {
+        find_image(image.screenshot_raw.as_ref().unwrap(), search_coordinates)
+    };
 
     println!("{}", similarity);
 

@@ -16,13 +16,26 @@ impl App for Recorder {
 
         if let Some(action) = self.next_play_record_action {
             if action == RecordPlayAction::Play {
+                self.hotkey_detector_sender
+                    .take()
+                    .unwrap()
+                    .send(())
+                    .unwrap();
                 play_back_actions(&self.action_list, &self.settings);
                 frame.set_visible(true);
+                self.hotkey_detector_sender =
+                    Some(start_hotkey_detector(self.settings.hotkeys.clone()));
             }
             if action == RecordPlayAction::Record {
+                self.hotkey_detector_sender
+                    .take()
+                    .unwrap()
+                    .send(())
+                    .unwrap();
                 self.action_list = record_actions(self.settings.record_mouse_movement);
                 frame.set_visible(true);
-                self.next_play_record_action = None;
+                self.hotkey_detector_sender =
+                    Some(start_hotkey_detector(self.settings.hotkeys.clone()));
             }
             self.next_play_record_action = None;
         }

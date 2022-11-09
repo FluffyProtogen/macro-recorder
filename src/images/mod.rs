@@ -348,7 +348,7 @@ pub fn find_pixel(search_coordinates: (Pos2, Pos2), color: (u8, u8, u8)) -> Opti
 
     screenshot_raw(search_coordinates.0, search_coordinates.1)
         .par_chunks(4)
-        .position_first(|pixel| (pixel[2], pixel[1], pixel[0]) == (color.0, color.1, color.2))
+        .position_first(|bgra| (bgra[2], bgra[1], bgra[0]) == (color.0, color.1, color.2))
         .map(|index| {
             (
                 (index % width) as i32
@@ -357,6 +357,27 @@ pub fn find_pixel(search_coordinates: (Pos2, Pos2), color: (u8, u8, u8)) -> Opti
                     + lesser(search_coordinates.0.y, search_coordinates.1.y) as i32,
             )
         })
+}
+
+pub fn fast_find_image(
+    image: &RawScreenshotPair,
+    search_coordinates: Option<(Pos2, Pos2)>,
+) -> (f32, (i32, i32)) {
+    let search_coordinates = search_coordinates.unwrap_or({
+        let (width, height) = unsafe {
+            (
+                GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                GetSystemMetrics(SM_CYVIRTUALSCREEN),
+            )
+        };
+        (pos2(0.0, 0.0), pos2(width as f32, height as f32))
+    });
+
+    let screenshot = screenshot_raw(search_coordinates.0, search_coordinates.1);
+
+
+
+    todo!() // USE WINDOWS OF THE SCREENSHOT AND WINDOWS ARE SIZED THE LENGTH OF THE TEMPLATE width * 4
 }
 
 pub fn get_color_under_mouse() -> Color32 {

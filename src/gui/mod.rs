@@ -1,7 +1,7 @@
 use eframe::{egui::*, *};
 use once_cell::sync::OnceCell;
 
-use std::{path::*, rc::Rc};
+use std::{path::*, rc::Rc, sync::mpsc::Sender};
 
 pub static PIXELS_PER_POINT: OnceCell<f32> = OnceCell::new();
 pub const ROW_LABEL_X_OFFSET: f32 = 97.0;
@@ -12,6 +12,7 @@ pub mod top_panel;
 
 use crate::{
     actions::{Action, KeyState, MouseActionKind, Point},
+    hotkeys::start_hotkey_detector,
     load_from_file,
     modals::{warning_window::DefaultErrorWindow, ModalWindow},
     play_back_actions, play_key_pressed,
@@ -31,6 +32,7 @@ pub struct Recorder {
     pub scroll_to_me_row: Option<usize>,
     pub modal: Option<Rc<dyn ModalWindow>>,
     pub moving_row: bool,
+    pub hotkey_detector_sender: Option<Sender<()>>,
 }
 
 const TOP_PANEL_HEIGHT: f32 = 65.0;
@@ -102,6 +104,12 @@ impl Recorder {
             None
         };
 
+        let hotkey_detector_sender = Some(start_hotkey_detector(
+            settings
+                .as_ref()
+                .map_or(vec![], |settings| settings.hotkeys.clone()),
+        ));
+
         Self {
             selected_row: None,
             action_list,
@@ -113,6 +121,7 @@ impl Recorder {
             scroll_to_me_row: None,
             modal: warning_window,
             moving_row: false,
+            hotkey_detector_sender,
         }
     }
 
@@ -326,6 +335,14 @@ impl Recorder {
                     self.try_save(path, frame);
                 }
             }
+
+            self.hotkey_detector_sender
+                .take()
+                .unwrap()
+                .send(())
+                .unwrap();
+            self.hotkey_detector_sender =
+                Some(start_hotkey_detector(self.settings.hotkeys.clone()));
         }
 
         if let (true, Some(..)) = (ui.input().key_pressed(Key::Enter), self.selected_row) {

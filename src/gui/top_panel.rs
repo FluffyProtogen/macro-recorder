@@ -1,4 +1,8 @@
-use crate::modals::{settings_window::SettingsWindow, warning_window::{DefaultErrorWindow, RecordConfirmationWindow}};
+use crate::modals::{
+    hotkeys_window::HotkeysWindow,
+    settings_window::SettingsWindow,
+    warning_window::{DefaultErrorWindow, RecordConfirmationWindow},
+};
 
 use super::*;
 
@@ -45,7 +49,7 @@ impl Recorder {
             .show(ctx, |ui| {
                 ui.set_enabled(!self.are_any_modals_open());
 
-                ui.allocate_space(vec2(0.0, 25.0));
+                ui.allocate_space(vec2(0.0, 20.0));
 
                 let style = ui
                     .style_mut()
@@ -66,7 +70,7 @@ impl Recorder {
                             frame.set_fullscreen(false);
                         }
 
-                        ui.allocate_space(vec2(30.0, 0.0));
+                        ui.allocate_space(vec2(20.0, 0.0));
                     }
 
                     if ui.button("Record").clicked() {
@@ -81,14 +85,14 @@ impl Recorder {
                         }
                     }
 
-                    ui.allocate_space(vec2(30.0, 0.0));
+                    ui.allocate_space(vec2(20.0, 0.0));
 
                     if ui.button("Settings").clicked() {
                         self.right_click_dialog = None;
                         self.modal = Some(Rc::new(SettingsWindow::new(self.settings.clone())));
                     }
 
-                    ui.allocate_space(vec2(30.0, 0.0));
+                    ui.allocate_space(vec2(20.0, 0.0));
 
                     if ui.button("Open").clicked() {
                         self.right_click_dialog = None;
@@ -116,7 +120,7 @@ impl Recorder {
                     }
 
                     if self.action_list.len() > 0 {
-                        ui.allocate_space(vec2(30.0, 0.0));
+                        ui.allocate_space(vec2(20.0, 0.0));
 
                         if ui.button("Save").clicked() {
                             self.right_click_dialog = None;
@@ -130,9 +134,16 @@ impl Recorder {
                                     self.try_save(path, frame);
                                 }
                             }
+                            self.hotkey_detector_sender
+                                .take()
+                                .unwrap()
+                                .send(())
+                                .unwrap();
+                            self.hotkey_detector_sender =
+                                Some(start_hotkey_detector(self.settings.hotkeys.clone()));
                         }
 
-                        ui.allocate_space(vec2(30.0, 0.0));
+                        ui.allocate_space(vec2(20.0, 0.0));
 
                         if ui.button("Save As").clicked() {
                             self.right_click_dialog = None;
@@ -141,8 +152,26 @@ impl Recorder {
                                 .save_file()
                             {
                                 self.try_save(path, frame);
+                                self.hotkey_detector_sender
+                                    .take()
+                                    .unwrap()
+                                    .send(())
+                                    .unwrap();
+                                self.hotkey_detector_sender =
+                                    Some(start_hotkey_detector(self.settings.hotkeys.clone()));
                             }
                         }
+                    }
+                    ui.allocate_space(vec2(20.0, 0.0));
+
+                    if ui.button("Hotkeys").clicked() {
+                        self.hotkey_detector_sender
+                            .take()
+                            .unwrap()
+                            .send(())
+                            .unwrap();
+                        self.modal =
+                            Some(Rc::new(HotkeysWindow::new(self.settings.hotkeys.clone())));
                     }
                 });
             });

@@ -3,6 +3,7 @@ use egui::{Context, Rect, Ui};
 use crate::gui::Recorder;
 
 pub mod action_list_category;
+pub mod hotkeys_window;
 pub mod modify_command_window;
 pub mod settings_window;
 pub mod warning_window;
