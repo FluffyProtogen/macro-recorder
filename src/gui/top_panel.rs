@@ -140,7 +140,7 @@ impl Recorder {
                                 .send(())
                                 .unwrap();
                             self.hotkey_detector_sender =
-                                Some(start_hotkey_detector(self.settings.hotkeys.clone()));
+                                Some(start_hotkey_detector(&mut self.settings.hotkeys));
                         }
 
                         ui.allocate_space(vec2(20.0, 0.0));
@@ -158,7 +158,7 @@ impl Recorder {
                                     .send(())
                                     .unwrap();
                                 self.hotkey_detector_sender =
-                                    Some(start_hotkey_detector(self.settings.hotkeys.clone()));
+                                    Some(start_hotkey_detector(&mut self.settings.hotkeys));
                             }
                         }
                     }

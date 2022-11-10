@@ -24,7 +24,7 @@ impl App for Recorder {
                 play_back_actions(&self.action_list, &self.settings);
                 frame.set_visible(true);
                 self.hotkey_detector_sender =
-                    Some(start_hotkey_detector(self.settings.hotkeys.clone()));
+                    Some(start_hotkey_detector(&mut self.settings.hotkeys));
             }
             if action == RecordPlayAction::Record {
                 self.hotkey_detector_sender
@@ -32,10 +32,10 @@ impl App for Recorder {
                     .unwrap()
                     .send(())
                     .unwrap();
-                self.action_list = record_actions(self.settings.record_mouse_movement);
+                self.action_list = record_actions(&self.settings);
                 frame.set_visible(true);
                 self.hotkey_detector_sender =
-                    Some(start_hotkey_detector(self.settings.hotkeys.clone()));
+                    Some(start_hotkey_detector(&mut self.settings.hotkeys));
             }
             self.next_play_record_action = None;
         }

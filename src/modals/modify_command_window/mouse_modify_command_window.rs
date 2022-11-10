@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 
 use crate::{
-    actions::{self, Action, MouseActionButton, MouseActionButtonState, MouseActionKind, Point},
+    actions::{
+        self, Action, MouseActionButton, MouseActionButtonState, MouseActionKind, MousePointKind,
+        Point,
+    },
     gui::Recorder,
     modals::ModalWindow,
 };
@@ -26,6 +29,7 @@ struct MouseModifyCommandWindowData {
     f3_previously_pressed: bool,
     window_visible: bool,
     enter_lock: bool,
+    offset_mouse: bool,
 }
 
 impl MouseModifyCommandWindow {
@@ -41,7 +45,7 @@ impl MouseModifyCommandWindow {
         };
 
         let mouse_position_text_edit_text = if let Some(position) = mouse_position {
-            (position.x.to_string(), position.y.to_string())
+            (position.x().to_string(), position.y().to_string())
         } else {
             (String::new(), String::new())
         };
@@ -65,6 +69,7 @@ impl MouseModifyCommandWindow {
                 f3_previously_pressed: minimize_window_key_pressed(),
                 window_visible: true,
                 enter_lock: true,
+                offset_mouse: false,
             }),
         }
     }
@@ -249,6 +254,13 @@ impl ModalWindow for MouseModifyCommandWindow {
                 ui.allocate_space(vec2(0.0, 25.0));
 
                 ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                    ui.label("Offset mouse position instead ");
+                    ui.checkbox(&mut data.offset_mouse, "");
+                });
+
+                ui.add_space(10.0);
+
+                ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                     ui.add_space(35.0);
 
                     ui.label("X: ");
@@ -327,12 +339,19 @@ impl MouseModifyCommandWindow {
 
                     if data.mouse_position_checkbox_state {
                         if let (Ok(x), Ok(y)) = (
-                            data.mouse_position_text_edit_text.0.parse(),
-                            data.mouse_position_text_edit_text.1.parse(),
+                            data.mouse_position_text_edit_text.0.parse::<i32>(),
+                            data.mouse_position_text_edit_text.1.parse::<i32>(),
                         ) {
                             recorder.modal = None;
                             recorder.action_list[recorder.selected_row.unwrap()] =
-                                Action::Mouse(MouseActionKind::Wheel(scroll, Some(Point { x, y })));
+                                Action::Mouse(MouseActionKind::Wheel(
+                                    scroll,
+                                    Some(if data.offset_mouse {
+                                        MousePointKind::By(Point { x, y })
+                                    } else {
+                                        MousePointKind::To(Point { x, y })
+                                    }),
+                                ));
                         }
                     } else {
                         recorder.modal = None;
@@ -343,12 +362,16 @@ impl MouseModifyCommandWindow {
             }
             MouseComboBoxType::Move => {
                 if let (Ok(x), Ok(y)) = (
-                    data.mouse_position_text_edit_text.0.parse(),
-                    data.mouse_position_text_edit_text.1.parse(),
+                    data.mouse_position_text_edit_text.0.parse::<i32>(),
+                    data.mouse_position_text_edit_text.1.parse::<i32>(),
                 ) {
                     recorder.modal = None;
                     recorder.action_list[recorder.selected_row.unwrap()] =
-                        Action::Mouse(MouseActionKind::Moved(Point { x, y }));
+                        Action::Mouse(MouseActionKind::Moved(if data.offset_mouse {
+                            MousePointKind::By(Point { x, y })
+                        } else {
+                            MousePointKind::To(Point { x, y })
+                        }));
                 }
             }
             _ => {
@@ -380,13 +403,17 @@ impl MouseModifyCommandWindow {
 
                 if data.mouse_position_checkbox_state {
                     if let (Ok(x), Ok(y)) = (
-                        data.mouse_position_text_edit_text.0.parse(),
-                        data.mouse_position_text_edit_text.1.parse(),
+                        data.mouse_position_text_edit_text.0.parse::<i32>(),
+                        data.mouse_position_text_edit_text.1.parse::<i32>(),
                     ) {
                         recorder.modal = None;
                         recorder.action_list[recorder.selected_row.unwrap()] =
                             Action::Mouse(MouseActionKind::Button(MouseActionButton {
-                                point: Some(Point { x, y }),
+                                point: Some(if data.offset_mouse {
+                                    MousePointKind::By(Point { x, y })
+                                } else {
+                                    MousePointKind::To(Point { x, y })
+                                }),
                                 button,
                                 state,
                             }));

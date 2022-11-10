@@ -16,6 +16,7 @@ use std::{
     error::Error,
     fs::{read_to_string, File},
     io::Write,
+    mem::zeroed,
     path::Path,
     time::SystemTime,
 };
@@ -25,6 +26,14 @@ use winapi::um::winuser::*;
 use crate::images::fast_find_image;
 
 fn execute_mouse_action(action: &MouseActionButton) {
+    let (dx, dy) = if let Some(point) = action.point {
+        match point {
+            MousePointKind::To(_) => (0, 0),
+            MousePointKind::By(point) => (point.x, point.y),
+        }
+    } else {
+        (0, 0)
+    };
     if action.state == MouseActionButtonState::Pressed
         || action.state == MouseActionButtonState::Released
     {
@@ -56,8 +65,8 @@ fn execute_mouse_action(action: &MouseActionButton) {
         };
 
         let mouse_input = MOUSEINPUT {
-            dx: 0,
-            dy: 0,
+            dx,
+            dy,
             mouseData: 0,
             dwFlags: flag,
             dwExtraInfo: 0,
@@ -70,7 +79,9 @@ fn execute_mouse_action(action: &MouseActionButton) {
         };
 
         if let Some(point) = action.point {
-            unsafe { SetCursorPos(point.x, point.y) };
+            if let MousePointKind::To(point) = point {
+                unsafe { SetCursorPos(point.x, point.y) };
+            }
         }
 
         unsafe { SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32) };
@@ -80,8 +91,8 @@ fn execute_mouse_action(action: &MouseActionButton) {
                 type_: INPUT_MOUSE,
                 u: unsafe {
                     std::mem::transmute_copy(&MOUSEINPUT {
-                dx: 0,
-                dy: 0,
+                dx,
+                dy,
                 mouseData: 0,
                 dwFlags: match action.button {
                     VK_LBUTTON => MOUSEEVENTF_LEFTDOWN,
@@ -98,8 +109,8 @@ fn execute_mouse_action(action: &MouseActionButton) {
                 type_: INPUT_MOUSE,
                 u: unsafe {
                     std::mem::transmute_copy(&MOUSEINPUT {
-                dx: 0,
-                dy: 0,
+                dx,
+                dy,
                 mouseData: 0,
                 dwFlags: match action.button {
                     VK_LBUTTON => MOUSEEVENTF_LEFTUP,
@@ -115,7 +126,9 @@ fn execute_mouse_action(action: &MouseActionButton) {
         ];
 
         if let Some(point) = action.point {
-            unsafe { SetCursorPos(point.x, point.y) };
+            if let MousePointKind::To(point) = point {
+                unsafe { SetCursorPos(point.x, point.y) };
+            }
         }
 
         unsafe { SendInput(2, inputs.as_mut_ptr(), std::mem::size_of::<INPUT>() as i32) };
@@ -234,7 +247,16 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
 
                 Action::Mouse(action_kind) => match action_kind {
                     MouseActionKind::Moved(point) => unsafe {
-                        SetCursorPos(point.x, point.y);
+                        match *point {
+                            MousePointKind::To(point) => {
+                                SetCursorPos(point.x, point.y);
+                            }
+                            MousePointKind::By(by_point) => {
+                                let mut point = zeroed();
+                                GetCursorPos(&mut point);
+                                SetCursorPos(point.x + by_point.x, point.y + by_point.y);
+                            }
+                        }
                     },
                     MouseActionKind::Button(action) => execute_mouse_action(action),
                     MouseActionKind::Wheel(amount, point) => execute_scroll_wheel(*amount, *point),
@@ -341,10 +363,19 @@ fn execute_wait_for_image(image: &ImageInfo) {
     }
 }
 
-fn execute_scroll_wheel(amount: i32, point: Option<Point>) {
+fn execute_scroll_wheel(amount: i32, point: Option<MousePointKind>) {
+    let (dx, dy) = if let Some(point) = point {
+        match point {
+            MousePointKind::To(_) => (0, 0),
+            MousePointKind::By(point) => (point.x, point.y),
+        }
+    } else {
+        (0, 0)
+    };
+
     let mouse_input = MOUSEINPUT {
-        dx: 0,
-        dy: 0,
+        dx,
+        dy,
         mouseData: amount as u32,
         dwFlags: MOUSEEVENTF_WHEEL,
         dwExtraInfo: 0,
@@ -357,7 +388,9 @@ fn execute_scroll_wheel(amount: i32, point: Option<Point>) {
     };
 
     if let Some(point) = point {
-        unsafe { SetCursorPos(point.x, point.y) };
+        if let MousePointKind::To(point) = point {
+            unsafe { SetCursorPos(point.x, point.y) };
+        }
     }
 
     unsafe { SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32) };

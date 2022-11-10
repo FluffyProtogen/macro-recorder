@@ -74,7 +74,7 @@ impl Recorder {
 
         cc.egui_ctx.set_style(style);
 
-        let settings = settings::load_settings();
+        let mut settings = settings::load_settings();
 
         let warning_window = if settings.is_err() {
             let create_settings_file_result = settings::create_settings_file();
@@ -106,8 +106,8 @@ impl Recorder {
 
         let hotkey_detector_sender = Some(start_hotkey_detector(
             settings
-                .as_ref()
-                .map_or(vec![], |settings| settings.hotkeys.clone()),
+                .as_mut()
+                .map_or(&mut vec![], |settings| &mut settings.hotkeys),
         ));
 
         Self {
@@ -341,8 +341,7 @@ impl Recorder {
                 .unwrap()
                 .send(())
                 .unwrap();
-            self.hotkey_detector_sender =
-                Some(start_hotkey_detector(self.settings.hotkeys.clone()));
+            self.hotkey_detector_sender = Some(start_hotkey_detector(&mut self.settings.hotkeys));
         }
 
         if let (true, Some(..)) = (ui.input().key_pressed(Key::Enter), self.selected_row) {

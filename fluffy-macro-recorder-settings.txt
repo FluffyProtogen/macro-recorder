@@ -1,1 +1,1 @@
-{"record_mouse_movement":false,"playback_speed":1.0,"ignore_delays":false,"repeat_times":1,"hotkeys":[{"hotkeys":[101],"path":"C:\\Users\\progr\\Downloads\\autoclicker.floof","repeat_if_held":false}]}
+{"record_mouse_movement":true,"record_mouse_offsets":false,"playback_speed":1.0,"ignore_delays":false,"repeat_times":0,"hotkeys":[{"hotkeys":[39],"path":"C:\\Users\\progr\\Downloads\\move_sample.floof","repeat_if_held":true}]}

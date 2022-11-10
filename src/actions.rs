@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use egui::Color32;
 use serde::*;
 
@@ -10,16 +12,38 @@ pub struct Point {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum MouseActionKind {
-    Moved(Point),
+    Moved(MousePointKind),
     Button(MouseActionButton),
-    Wheel(i32, Option<Point>),
+    Wheel(i32, Option<MousePointKind>),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MouseActionButton {
-    pub point: Option<Point>,
+    pub point: Option<MousePointKind>,
     pub button: i32,
     pub state: MouseActionButtonState,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub enum MousePointKind {
+    To(Point),
+    By(Point),
+}
+
+impl MousePointKind {
+    pub fn x(self) -> i32 {
+        match self {
+            MousePointKind::To(point) => point.x,
+            MousePointKind::By(point) => point.x,
+        }
+    }
+
+    pub fn y(self) -> i32 {
+        match self {
+            MousePointKind::To(point) => point.y,
+            MousePointKind::By(point) => point.y,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
@@ -86,11 +110,18 @@ impl Action {
         match self {
             Self::Delay(delay) => ["Delay".into(), delay.to_string(), "".into()],
             Self::Mouse(kind) => match kind {
-                MouseActionKind::Moved(point) => [
-                    "Mouse".into(),
-                    "Moved".into(),
-                    format!("X = {}, Y = {}", point.x, point.y),
-                ],
+                MouseActionKind::Moved(point) => {
+                    let (move_type, x, y) = match *point {
+                        MousePointKind::To(point) => ("Moved To", point.x, point.y),
+                        MousePointKind::By(point) => ("Changed By", point.x, point.y),
+                    };
+
+                    [
+                        "Mouse".into(),
+                        move_type.to_string(),
+                        format!("X = {}, Y = {}", x, y),
+                    ]
+                }
                 MouseActionKind::Button(action_button) => [
                     "Mouse".into(),
                     format!(
@@ -101,9 +132,16 @@ impl Action {
                             MouseActionButtonState::Released => "Up",
                             MouseActionButtonState::Clicked => "Clicked",
                         }
-                    ),
+                    )
+                    .into(),
                     match action_button.point {
-                        Some(point) => format!("X = {}, Y = {}", point.x, point.y),
+                        Some(point) => {
+                            let (move_type, x, y) = match point {
+                                MousePointKind::To(point) => ("At", point.x, point.y),
+                                MousePointKind::By(point) => ("Moved By", point.x, point.y),
+                            };
+                            format!("{} X = {}, Y = {}", move_type, x, y)
+                        }
                         None => "Current Position".into(),
                     },
                 ],

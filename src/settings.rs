@@ -12,6 +12,7 @@ pub const SETTINGS_FILE_NAME: &'static str = "fluffy-macro-recorder-settings.txt
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub record_mouse_movement: bool,
+    pub record_mouse_offsets: bool,
     pub playback_speed: f32,
     pub ignore_delays: bool,
     pub repeat_times: u32,
@@ -22,6 +23,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             record_mouse_movement: true,
+            record_mouse_offsets: false,
             playback_speed: 1.0,
             ignore_delays: false,
             repeat_times: 1,

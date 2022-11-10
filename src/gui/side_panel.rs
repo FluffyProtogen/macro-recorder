@@ -62,7 +62,9 @@ impl Recorder {
                         || (ui.input().key_pressed(Key::Num1) && !self.are_any_modals_open())
                     {
                         self.create_action_window(
-                            Action::Mouse(MouseActionKind::Moved(Point { x: 0, y: 0 })),
+                            Action::Mouse(MouseActionKind::Moved(
+                                crate::actions::MousePointKind::To(Point { x: 0, y: 0 }),
+                            )),
                             screen_dimensions,
                             ctx,
                         );

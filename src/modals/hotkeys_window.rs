@@ -32,7 +32,7 @@ impl HotkeysWindow {
                     repeat_if_held,
                 } = hotkey_macro.clone();
 
-                (Some(hotkeys), Some(path), repeat_if_held)
+                (Some(hotkeys), path, repeat_if_held)
             })
             .collect();
 
@@ -61,13 +61,14 @@ impl HotkeysWindow {
             };
             hotkey_macros.push(HotkeyMacro {
                 hotkeys,
-                path,
+                path: Some(path),
                 repeat_if_held,
             });
         }
-        recorder.settings.hotkeys = hotkey_macros.clone();
+        recorder.settings.hotkeys = hotkey_macros;
         recorder.modal = recorder.settings.save_with_error_window();
-        recorder.hotkey_detector_sender = Some(start_hotkey_detector(hotkey_macros));
+        recorder.hotkey_detector_sender =
+            Some(start_hotkey_detector(&mut recorder.settings.hotkeys));
     }
 }
 
@@ -259,7 +260,7 @@ impl ModalWindow for HotkeysWindow {
                 if ui.button("Cancel").clicked() {
                     recorder.modal = None;
                     recorder.hotkey_detector_sender =
-                        Some(start_hotkey_detector(recorder.settings.hotkeys.clone()));
+                        Some(start_hotkey_detector(&mut recorder.settings.hotkeys));
                 }
 
                 ui.add_space(35.0);

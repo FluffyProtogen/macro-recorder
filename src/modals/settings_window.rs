@@ -59,6 +59,13 @@ impl ModalWindow for SettingsWindow {
 
             ui.allocate_space(vec2(0.0, 25.0));
 
+            ui.checkbox(
+                &mut data.temp_settings.record_mouse_offsets,
+                "Record mouse offsets instead of position",
+            );
+
+            ui.allocate_space(vec2(0.0, 25.0));
+
             ui.label(format!(
                 "Playback speed: {}x",
                 data.temp_settings.playback_speed

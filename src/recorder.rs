@@ -1,21 +1,29 @@
-use std::{mem::*, sync::mpsc::sync_channel, thread};
+use chrono::{DateTime, Utc};
+use std::{mem::*, sync::mpsc::sync_channel, thread, time::SystemTime};
 use winapi::{
     ctypes::*,
-    shared::minwindef::*,
+    shared::{minwindef::*, windef::POINT},
     um::{processthreadsapi::GetCurrentThreadId, sysinfoapi::GetTickCount, winuser::*},
 };
 
-use crate::actions::{Action, MouseActionButton, Point};
 use crate::actions::{Action::*, MouseActionButtonState};
 use crate::actions::{KeyState, MouseActionKind::*};
-pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
+use crate::{
+    actions::{Action, MouseActionButton, MousePointKind, Point},
+    settings::Settings,
+};
+pub fn record_actions(settings: &Settings) -> Vec<Action> {
     unsafe {
+        let mut initial_position = zeroed();
+
+        GetCursorPos(&mut initial_position);
+
         KEYBOARD_ACTIONS.clear();
         MOUSE_ACTIONS.clear();
 
         let (keyboard_thread, mouse_thread) = generate_hooks();
 
-        let initial_start_time = GetTickCount();
+        let initial_start_time = DateTime::<Utc>::from(SystemTime::now()).timestamp_millis();
 
         while !stop_key_pressed() {}
 
@@ -29,33 +37,63 @@ pub fn record_actions(record_mouse_movement: bool) -> Vec<Action> {
         // Remove stop combination
         KEYBOARD_ACTIONS.drain((KEYBOARD_ACTIONS.len() - 2)..KEYBOARD_ACTIONS.len());
 
-        if !record_mouse_movement {
-            MOUSE_ACTIONS.retain(|(_, w_param)| *w_param != WM_MOUSEMOVE as usize);
+        if !settings.record_mouse_movement {
+            MOUSE_ACTIONS.retain(|(_, w_param, _)| *w_param != WM_MOUSEMOVE as usize);
         }
 
         if MOUSE_ACTIONS.len() == 0 && KEYBOARD_ACTIONS.len() == 0 {
             return vec![];
         }
 
-        let start_time = if MOUSE_ACTIONS.len() > 0 {
-            if KEYBOARD_ACTIONS.len() > 0 {
-                if KEYBOARD_ACTIONS[0].0.time < MOUSE_ACTIONS[0].0.time {
-                    KEYBOARD_ACTIONS[0].0.time
+        let mut kb_actions = KEYBOARD_ACTIONS
+            .iter()
+            .map(|(kb, w_param, time)| {
+                (
+                    KBDLLHOOKSTRUCT {
+                        time: (DateTime::<Utc>::from(*time).timestamp_millis() - initial_start_time)
+                            as u32,
+                        ..*kb
+                    },
+                    *w_param,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let mut ms_actions = MOUSE_ACTIONS
+            .iter()
+            .map(|(ms, w_param, time)| {
+                (
+                    MSLLHOOKSTRUCT {
+                        time: (DateTime::<Utc>::from(*time).timestamp_millis() - initial_start_time)
+                            as u32,
+                        ..*ms
+                    },
+                    *w_param,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let start_time = if ms_actions.len() > 0 {
+            if kb_actions.len() > 0 {
+                if kb_actions[0].0.time < ms_actions[0].0.time {
+                    kb_actions[0].0.time
                 } else {
-                    MOUSE_ACTIONS[0].0.time
+                    ms_actions[0].0.time
                 }
             } else {
-                MOUSE_ACTIONS[0].0.time
+                ms_actions[0].0.time
             }
         } else {
-            KEYBOARD_ACTIONS[0].0.time
+            kb_actions[0].0.time
         };
 
         combine_into_action_list(
-            &mut KEYBOARD_ACTIONS,
-            &mut MOUSE_ACTIONS,
-            initial_start_time,
+            &mut kb_actions,
+            &mut ms_actions,
+            0,
             start_time,
+            settings,
+            initial_position,
         )
     }
 }
@@ -65,6 +103,8 @@ fn combine_into_action_list(
     mouse_actions: &mut Vec<(MSLLHOOKSTRUCT, WPARAM)>,
     initial_start_time: u32,
     start_time: u32,
+    settings: &Settings,
+    initial_position: POINT,
 ) -> Vec<Action> {
     let mut current_time = start_time;
 
@@ -76,6 +116,26 @@ fn combine_into_action_list(
     if (start_time - initial_start_time) > 0 {
         actions.push(Delay(start_time - initial_start_time));
     }
+
+    let mut previous_position = initial_position;
+
+    let mut calculate_mouse_pos = |point: POINT| {
+        if settings.record_mouse_offsets {
+            let point_kind = MousePointKind::By(Point {
+                x: point.x - previous_position.x,
+                y: point.y - previous_position.y,
+            });
+
+            previous_position = point;
+
+            point_kind
+        } else {
+            MousePointKind::To(Point {
+                x: point.x,
+                y: point.y,
+            })
+        }
+    };
 
     loop {
         let next_keyboard_time = if keyboard_index < keyboard_actions.len() {
@@ -92,16 +152,10 @@ fn combine_into_action_list(
 
         if next_keyboard_time > next_mouse_time {
             let action_kind = match mouse_actions[mouse_index].1 as u32 {
-                WM_MOUSEMOVE => Moved(Point {
-                    x: mouse_actions[mouse_index].0.pt.x,
-                    y: mouse_actions[mouse_index].0.pt.y,
-                }),
+                WM_MOUSEMOVE => Moved(calculate_mouse_pos(mouse_actions[mouse_index].0.pt)),
                 WM_MOUSEWHEEL => Wheel(
                     (mouse_actions[mouse_index].0.mouseData as i32) >> 16,
-                    Some(Point {
-                        x: mouse_actions[mouse_index].0.pt.x,
-                        y: mouse_actions[mouse_index].0.pt.y,
-                    }),
+                    Some(calculate_mouse_pos(mouse_actions[mouse_index].0.pt)),
                 ),
                 _ => {
                     let button = match mouse_actions[mouse_index].1 as u32 {
@@ -118,10 +172,7 @@ fn combine_into_action_list(
                     };
 
                     let action = MouseActionButton {
-                        point: Some(Point {
-                            x: mouse_actions[mouse_index].0.pt.x,
-                            y: mouse_actions[mouse_index].0.pt.y,
-                        }),
+                        point: Some(calculate_mouse_pos(mouse_actions[mouse_index].0.pt)),
                         button,
                         state: if pressed {
                             MouseActionButtonState::Pressed
@@ -216,13 +267,13 @@ unsafe fn generate_hooks() -> (u32, u32) {
     )
 }
 
-static mut KEYBOARD_ACTIONS: Vec<(KBDLLHOOKSTRUCT, WPARAM)> = vec![];
-static mut MOUSE_ACTIONS: Vec<(MSLLHOOKSTRUCT, WPARAM)> = vec![];
+static mut KEYBOARD_ACTIONS: Vec<(KBDLLHOOKSTRUCT, WPARAM, SystemTime)> = vec![];
+static mut MOUSE_ACTIONS: Vec<(MSLLHOOKSTRUCT, WPARAM, SystemTime)> = vec![];
 
 unsafe extern "system" fn keyboard(n_code: c_int, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
     let info = *transmute::<LPARAM, PKBDLLHOOKSTRUCT>(l_param);
 
-    KEYBOARD_ACTIONS.push((info, w_param));
+    KEYBOARD_ACTIONS.push((info, w_param, SystemTime::now()));
 
     CallNextHookEx(zeroed(), n_code, w_param, l_param)
 }
@@ -230,7 +281,7 @@ unsafe extern "system" fn keyboard(n_code: c_int, w_param: WPARAM, l_param: LPAR
 unsafe extern "system" fn mouse(n_code: c_int, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
     let info = *transmute::<LPARAM, PMSLLHOOKSTRUCT>(l_param);
 
-    MOUSE_ACTIONS.push((info, w_param));
+    MOUSE_ACTIONS.push((info, w_param, SystemTime::now()));
 
     CallNextHookEx(zeroed(), n_code, w_param, l_param)
 }
