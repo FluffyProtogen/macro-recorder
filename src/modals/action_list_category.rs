@@ -8,6 +8,7 @@ use crate::{actions::Action, gui::Recorder, modals::ModalWindow};
 pub enum ActionListCategory {
     Wait,
     If,
+    Repeat,
 }
 
 #[derive(Clone, Copy, Debug, EnumIter)]
@@ -19,6 +20,9 @@ enum SubCategory {
     IfPixel,
     Else,
     EndIf,
+    Repeat,
+    EndRepeat,
+    Break,
 }
 
 impl ActionListCategory {
@@ -27,6 +31,7 @@ impl ActionListCategory {
         match *self {
             ActionListCategory::Wait => &[Delay, WaitForImage, WaitForPixel],
             ActionListCategory::If => &[IfImage, IfPixel, Else, EndIf],
+            ActionListCategory::Repeat => &[Repeat, EndRepeat, Break],
         }
     }
 }
@@ -42,6 +47,9 @@ impl SubCategory {
             IfPixel => Action::IfPixel(Default::default()),
             Else => Action::Else,
             EndIf => Action::EndIf,
+            Repeat => Action::Repeat(0),
+            EndRepeat => Action::EndRepeat,
+            Break => Action::Break,
         }
     }
 }
@@ -57,6 +65,9 @@ impl ToString for SubCategory {
             IfPixel => "If Pixel Found".into(),
             Else => "Else".into(),
             EndIf => "End If".into(),
+            Repeat => "Repeat".into(),
+            EndRepeat => "End Repeat".into(),
+            Break => "Break".into(),
         }
     }
 }

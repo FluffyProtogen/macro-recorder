@@ -3,31 +3,31 @@ use std::cell::RefCell;
 use crate::{actions::Action, gui::Recorder, modals::ModalWindow};
 use eframe::egui::*;
 
-pub struct DelayModifyCommandWindow {
-    data: RefCell<DelayModifyCommandWindowData>,
+pub struct RepeatModifyCommandWindow {
+    data: RefCell<RepeatModifyCommandWindowData>,
 }
 
-struct DelayModifyCommandWindowData {
+struct RepeatModifyCommandWindowData {
     creating_command: bool,
     position: Option<Pos2>,
     text_edit_text: String,
     enter_lock: bool,
 }
 
-impl DelayModifyCommandWindow {
-    pub fn new(creating_command: bool, position: Pos2, delay: u32) -> Self {
+impl RepeatModifyCommandWindow {
+    pub fn new(creating_command: bool, position: Pos2, times: usize) -> Self {
         Self {
-            data: RefCell::new(DelayModifyCommandWindowData {
+            data: RefCell::new(RepeatModifyCommandWindowData {
                 creating_command,
                 position: Some(position),
-                text_edit_text: delay.to_string(),
+                text_edit_text: times.to_string(),
                 enter_lock: true,
             }),
         }
     }
 
     fn setup(&self, drag_bounds: Rect) -> Window {
-        let mut window = Window::new("Delay")
+        let mut window = Window::new("Repeat")
             .collapsible(false)
             .resizable(false)
             .drag_bounds(drag_bounds);
@@ -42,14 +42,14 @@ impl DelayModifyCommandWindow {
         window
     }
 
-    fn save(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
-        if let Ok(delay) = data.text_edit_text.parse() {
+    fn save(&self, data: &RepeatModifyCommandWindowData, recorder: &mut Recorder) {
+        if let Ok(times) = data.text_edit_text.parse() {
             recorder.modal = None;
-            recorder.action_list[recorder.selected_row.unwrap()] = Action::Delay(delay);
+            recorder.action_list[recorder.selected_row.unwrap()] = Action::Repeat(times);
         }
     }
 
-    fn cancel(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
+    fn cancel(&self, data: &RepeatModifyCommandWindowData, recorder: &mut Recorder) {
         recorder.modal = None;
         if data.creating_command {
             recorder.action_list.remove(recorder.selected_row.unwrap());
@@ -58,7 +58,7 @@ impl DelayModifyCommandWindow {
     }
 }
 
-impl ModalWindow for DelayModifyCommandWindow {
+impl ModalWindow for RepeatModifyCommandWindow {
     fn update(
         &self,
         recorder: &mut Recorder,
@@ -92,7 +92,7 @@ impl ModalWindow for DelayModifyCommandWindow {
                 ui.add_space(35.0);
                 duration_area.ui(ui);
                 ui.add_space(15.0);
-                ui.label("milliseconds");
+                ui.label("times (0 to repeat forever)");
                 ui.add_space(35.0);
             });
 

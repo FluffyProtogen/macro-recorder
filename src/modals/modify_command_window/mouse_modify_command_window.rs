@@ -44,6 +44,12 @@ impl MouseModifyCommandWindow {
             MouseActionKind::Wheel(_, point) => *point,
         };
 
+        let offset_mouse = match mouse_action_kind {
+            MouseActionKind::Button(button) => matches!(button.point, Some(MousePointKind::By(..))),
+            MouseActionKind::Moved(point) => matches!(*point, MousePointKind::By(..)),
+            MouseActionKind::Wheel(_, point) => matches!(*point, Some(MousePointKind::By(..))),
+        };
+
         let mouse_position_text_edit_text = if let Some(position) = mouse_position {
             (position.x().to_string(), position.y().to_string())
         } else {
@@ -69,7 +75,7 @@ impl MouseModifyCommandWindow {
                 f3_previously_pressed: minimize_window_key_pressed(),
                 window_visible: true,
                 enter_lock: true,
-                offset_mouse: false,
+                offset_mouse,
             }),
         }
     }
@@ -339,8 +345,8 @@ impl MouseModifyCommandWindow {
 
                     if data.mouse_position_checkbox_state {
                         if let (Ok(x), Ok(y)) = (
-                            data.mouse_position_text_edit_text.0.parse::<i32>(),
-                            data.mouse_position_text_edit_text.1.parse::<i32>(),
+                            data.mouse_position_text_edit_text.0.parse(),
+                            data.mouse_position_text_edit_text.1.parse(),
                         ) {
                             recorder.modal = None;
                             recorder.action_list[recorder.selected_row.unwrap()] =
@@ -362,8 +368,8 @@ impl MouseModifyCommandWindow {
             }
             MouseComboBoxType::Move => {
                 if let (Ok(x), Ok(y)) = (
-                    data.mouse_position_text_edit_text.0.parse::<i32>(),
-                    data.mouse_position_text_edit_text.1.parse::<i32>(),
+                    data.mouse_position_text_edit_text.0.parse(),
+                    data.mouse_position_text_edit_text.1.parse(),
                 ) {
                     recorder.modal = None;
                     recorder.action_list[recorder.selected_row.unwrap()] =
@@ -403,8 +409,8 @@ impl MouseModifyCommandWindow {
 
                 if data.mouse_position_checkbox_state {
                     if let (Ok(x), Ok(y)) = (
-                        data.mouse_position_text_edit_text.0.parse::<i32>(),
-                        data.mouse_position_text_edit_text.1.parse::<i32>(),
+                        data.mouse_position_text_edit_text.0.parse(),
+                        data.mouse_position_text_edit_text.1.parse(),
                     ) {
                         recorder.modal = None;
                         recorder.action_list[recorder.selected_row.unwrap()] =

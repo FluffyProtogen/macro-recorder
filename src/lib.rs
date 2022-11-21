@@ -196,13 +196,35 @@ fn execute_keyboard_action(key_code: i32, state: KeyState) {
 }
 
 pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
+    play(action_list, settings, 0, settings.repeat_times);
+}
+
+fn play(
+    action_list: &[Action],
+    settings: &Settings,
+    skip: usize,
+    repeat_times: usize,
+) -> Option<usize> {
+    let mut if_stack: Vec<bool> = vec![];
     let mut counter = 0;
 
-    while counter < settings.repeat_times || settings.repeat_times == 0 {
-        let mut if_stack: Vec<bool> = vec![];
-        for (count, action) in action_list.iter().enumerate() {
+    while counter < repeat_times || repeat_times == 0 {
+        let mut index = skip;
+        let mut repeat_end_skip_index = None;
+
+        for action in action_list.iter().skip(skip) {
+            index += 1;
+
             if stop_key_pressed() {
-                return;
+                return None;
+            }
+
+            if let Some(end_index) = repeat_end_skip_index {
+                if index <= end_index {
+                    continue;
+                } else {
+                    repeat_end_skip_index = None;
+                }
             }
 
             match action {
@@ -217,6 +239,30 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
                     if if_stack.pop().is_none() {
                         panic!("NEED TO MAKE IT STOP THE PLAYBACK PROCESS (RETURN) AND MAKE AN ERROR WINDOW SAYING ENDIF WITHOUT IF");
                     }
+                }
+                Action::Repeat(amount) => {
+                    repeat_end_skip_index = play(action_list, settings, index, *amount);
+                }
+                Action::Break => {
+                    let mut current_index = index;
+                    let index = loop {
+                        if current_index > action_list.len() {
+                            panic!("NEED TO MAKE IT RETURN AND SHOW AN ERROR WINDOW SAYING NO END REPEAT FOUND")
+                        }
+
+                        if matches!(action_list[current_index], Action::EndRepeat) {
+                            break current_index + 1;
+                        }
+                        current_index += 1;
+                    };
+
+                    return Some(index);
+                }
+                Action::EndRepeat => {
+                    if counter == repeat_times - 1 {
+                        return Some(index);
+                    }
+                    break;
                 }
                 _ => {}
             }
@@ -240,7 +286,7 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
                         < delay as i64
                     {
                         if stop_key_pressed() {
-                            return;
+                            return None;
                         }
                     }
                 }
@@ -266,15 +312,20 @@ pub fn play_back_actions(action_list: &[Action], settings: &Settings) {
                 Action::IfImage(image_info) => if_stack.push(execute_if_image(image_info)),
                 Action::IfPixel(pixel_info) => if_stack.push(execute_if_pixel(pixel_info)),
                 Action::WaitForPixel(pixel_info) => execute_wait_for_pixel(pixel_info),
-
-                Action::Else | Action::EndIf => {}
+                Action::Else
+                | Action::EndIf
+                | Action::EndRepeat
+                | Action::Break
+                | Action::Repeat(..) => {}
             }
         }
 
-        if settings.repeat_times != 0 {
+        if settings.repeat_times != 0 || skip != 0 {
             counter += 1;
         }
     }
+
+    None
 }
 
 fn execute_if_image(image: &ImageInfo) -> bool {

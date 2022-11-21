@@ -15,7 +15,7 @@ pub struct Settings {
     pub record_mouse_offsets: bool,
     pub playback_speed: f32,
     pub ignore_delays: bool,
-    pub repeat_times: u32,
+    pub repeat_times: usize,
     pub hotkeys: Vec<HotkeyMacro>,
 }
 

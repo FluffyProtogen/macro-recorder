@@ -17,7 +17,7 @@ const RESIZE_FACTOR: u32 = 3;
 
 use serde::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct RawScreenshot {
     pub pixels: Vec<u8>,
     pub width: usize,
@@ -26,13 +26,13 @@ pub struct RawScreenshot {
     pub y: i32,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RawScreenshotPair {
     pub color: RawScreenshot,
     pub gray: GrayImageSerializable,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GrayImageSerializable(pub GrayImage);
 
 impl std::ops::Deref for GrayImageSerializable {
@@ -374,8 +374,6 @@ pub fn fast_find_image(
     });
 
     let screenshot = screenshot_raw(search_coordinates.0, search_coordinates.1);
-
-
 
     todo!() // USE WINDOWS OF THE SCREENSHOT AND WINDOWS ARE SIZED THE LENGTH OF THE TEMPLATE width * 4
 }

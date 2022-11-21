@@ -3,6 +3,7 @@ pub mod image_modify_command_window;
 pub mod keyboard_command_window;
 pub mod mouse_modify_command_window;
 pub mod pixel_modify_command_window;
+pub mod repeat_modify_command_window;
 
 use std::rc::Rc;
 
@@ -15,6 +16,7 @@ use self::image_modify_command_window::{ImageModifyCommandWindow, ImageWindowTyp
 use self::keyboard_command_window::KeyboardModifyCommandWindow;
 use self::mouse_modify_command_window::MouseModifyCommandWindow;
 use self::pixel_modify_command_window::{PixelModifyCommandWindow, PixelWindowType};
+use self::repeat_modify_command_window::RepeatModifyCommandWindow;
 
 impl Action {
     pub fn get_modify_command_window(
@@ -69,7 +71,13 @@ impl Action {
                 PixelWindowType::Wait,
             ))),
 
-            Self::Else | Self::EndIf => None,
+            Self::Repeat(times) => Some(Rc::new(RepeatModifyCommandWindow::new(
+                creating_command,
+                position,
+                *times,
+            ))),
+
+            Self::Else | Self::EndIf | Self::EndRepeat | Self::Break => None,
         }
     }
 }

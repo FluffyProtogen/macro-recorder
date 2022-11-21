@@ -4,27 +4,27 @@ use egui::Color32;
 use serde::*;
 
 use crate::{images::RawScreenshotPair, keycodes_to_string::key_code_to_string};
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct Point {
     pub x: i32,
     pub y: i32,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MouseActionKind {
     Moved(MousePointKind),
     Button(MouseActionButton),
     Wheel(i32, Option<MousePointKind>),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MouseActionButton {
     pub point: Option<MousePointKind>,
     pub button: i32,
     pub state: MouseActionButtonState,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum MousePointKind {
     To(Point),
     By(Point),
@@ -46,14 +46,14 @@ impl MousePointKind {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum MouseActionButtonState {
     Pressed,
     Released,
     Clicked,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Action {
     Delay(u32),
     Mouse(MouseActionKind),
@@ -64,6 +64,9 @@ pub enum Action {
     IfPixel(PixelInfo),
     Else,
     EndIf,
+    Repeat(usize),
+    EndRepeat,
+    Break,
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Debug)]
@@ -73,7 +76,7 @@ pub enum KeyState {
     Pressed,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
 pub struct PixelInfo {
     pub color: (u8, u8, u8),
     pub search_location_left_top: (i32, i32),
@@ -82,7 +85,7 @@ pub struct PixelInfo {
     pub move_mouse_if_found: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ImageInfo {
     pub screenshot_raw: Option<RawScreenshotPair>,
     pub move_mouse_if_found: bool,
@@ -208,6 +211,17 @@ impl Action {
                     "".into()
                 },
             ],
+            Self::Repeat(amount) => [
+                "Repeat".into(),
+                if *amount == 0 {
+                    "Forever".into()
+                } else {
+                    format!("{amount} Times")
+                },
+                "".into(),
+            ],
+            Self::EndRepeat => ["End Repeat".into(), "".into(), "".into()],
+            Self::Break => ["Break".into(), "".into(), "".into()],
         }
     }
 }

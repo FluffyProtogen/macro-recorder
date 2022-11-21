@@ -97,6 +97,15 @@ impl Recorder {
                     {
                         self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::If)));
                     }
+
+                    ui.allocate_space(vec2(0.0, 30.0));
+
+                    if ui.button(RichText::new("Repeat").size(19.5)).clicked()
+                        || (ui.input().key_pressed(Key::Num5) && !self.are_any_modals_open())
+                    {
+                        self.modal =
+                            Some(Rc::new(ActionListWindow::new(ActionListCategory::Repeat)));
+                    }
                 });
             });
     }

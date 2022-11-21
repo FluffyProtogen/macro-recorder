@@ -100,7 +100,7 @@ impl ModalWindow for SettingsWindow {
                 }
                 ui.add_space(35.0);
                 if ui.button("Save").clicked() {
-                    if let Ok(repeats) = data.replay_textedit_text.parse::<u32>() {
+                    if let Ok(repeats) = data.replay_textedit_text.parse() {
                         data.temp_settings.repeat_times = repeats;
                         recorder.settings = data.temp_settings.clone();
                         recorder.modal = data.temp_settings.save_with_error_window();

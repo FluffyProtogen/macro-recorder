@@ -88,9 +88,9 @@ impl ModalWindow for HotkeysWindow {
         &self,
         recorder: &mut Recorder,
         ctx: &Context,
-        ui: &mut Ui,
+        _ui: &mut Ui,
         drag_bounds: Rect,
-        frame: &mut eframe::Frame,
+        _frame: &mut eframe::Frame,
     ) {
         let window = self.setup(recorder, drag_bounds);
 
