@@ -243,23 +243,8 @@ fn play(
                 Action::Repeat(amount) => {
                     repeat_end_skip_index = play(action_list, settings, index, *amount);
                 }
-                Action::Break => {
-                    let mut current_index = index;
-                    let index = loop {
-                        if current_index > action_list.len() {
-                            panic!("NEED TO MAKE IT RETURN AND SHOW AN ERROR WINDOW SAYING NO END REPEAT FOUND")
-                        }
-
-                        if matches!(action_list[current_index], Action::EndRepeat) {
-                            break current_index + 1;
-                        }
-                        current_index += 1;
-                    };
-
-                    return Some(index);
-                }
                 Action::EndRepeat => {
-                    if counter == repeat_times - 1 {
+                    if counter + 1 == repeat_times {
                         return Some(index);
                     }
                     break;
@@ -312,11 +297,22 @@ fn play(
                 Action::IfImage(image_info) => if_stack.push(execute_if_image(image_info)),
                 Action::IfPixel(pixel_info) => if_stack.push(execute_if_pixel(pixel_info)),
                 Action::WaitForPixel(pixel_info) => execute_wait_for_pixel(pixel_info),
-                Action::Else
-                | Action::EndIf
-                | Action::EndRepeat
-                | Action::Break
-                | Action::Repeat(..) => {}
+                Action::Else | Action::EndIf | Action::EndRepeat | Action::Repeat(..) => {}
+                Action::Break => {
+                    let mut current_index = index;
+                    let index = loop {
+                        if current_index > action_list.len() {
+                            panic!("NEED TO MAKE IT RETURN AND SHOW AN ERROR WINDOW SAYING NO END REPEAT FOUND")
+                        }
+
+                        if matches!(action_list[current_index], Action::EndRepeat) {
+                            break current_index + 1;
+                        }
+                        current_index += 1;
+                    };
+
+                    return Some(index);
+                }
             }
         }
 
