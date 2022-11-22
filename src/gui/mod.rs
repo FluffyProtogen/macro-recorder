@@ -313,7 +313,11 @@ impl Recorder {
         if ui.input().key_pressed(Key::Delete) || ui.input().key_pressed(Key::Backspace) {
             if let Some(selected_row) = self.selected_row {
                 self.action_list.remove(selected_row);
-                self.selected_row = None;
+
+                if Some(self.action_list.len()) <= self.selected_row {
+                    self.selected_row = None;
+                }
+
                 self.right_click_dialog = None;
             }
         }

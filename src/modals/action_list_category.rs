@@ -1,6 +1,7 @@
 use egui::{vec2, Align, Align2, Context, Key, Layout, Rect, Ui, Window};
 use std::cell::RefCell;
 use strum_macros::EnumIter;
+use winapi::um::winuser::GetAsyncKeyState;
 
 use crate::{actions::Action, gui::Recorder, modals::ModalWindow};
 
@@ -77,9 +78,12 @@ pub struct ActionListWindow {
 }
 
 impl ActionListWindow {
-    pub fn new(category: ActionListCategory) -> Self {
+    pub fn new(category: ActionListCategory, index: i32) -> Self {
         Self {
-            data: RefCell::new(ActionListWindowData { category }),
+            data: RefCell::new(ActionListWindowData {
+                category,
+                key_lock: Some(index),
+            }),
         }
     }
 
@@ -94,6 +98,7 @@ impl ActionListWindow {
 
 struct ActionListWindowData {
     category: ActionListCategory,
+    key_lock: Option<i32>,
 }
 
 impl ModalWindow for ActionListWindow {
@@ -112,7 +117,29 @@ impl ModalWindow for ActionListWindow {
         let window = self.setup(drag_bounds);
 
         window.show(ctx, |ui| {
-            let data = self.data.borrow();
+            let mut data = self.data.borrow_mut();
+
+            if let Some(key) = data.key_lock {
+                if !get_pressed_numbers()
+                    .iter()
+                    .any(|key_pressed| *key_pressed == key)
+                {
+                    data.key_lock = None;
+                }
+            }
+
+            for number in get_pressed_numbers() {
+                if Some(number) != data.key_lock {
+                    if let Some(category) = data.category.get_categories().get(number as usize - 1)
+                    {
+                        recorder.create_action_window(
+                            category.get_default_action(),
+                            vec2(drag_bounds.width(), drag_bounds.height()),
+                            ctx,
+                        );
+                    }
+                }
+            }
 
             ui.allocate_space(vec2(0.0, 10.0));
 
@@ -137,4 +164,16 @@ impl ModalWindow for ActionListWindow {
             });
         });
     }
+}
+
+fn get_pressed_numbers() -> Vec<i32> {
+    (0x31..=0x39)
+        .filter_map(|code| {
+            if unsafe { GetAsyncKeyState(code) < 0 } {
+                Some(code - 0x30)
+            } else {
+                None
+            }
+        })
+        .collect()
 }

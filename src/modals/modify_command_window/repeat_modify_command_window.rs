@@ -88,9 +88,9 @@ impl ModalWindow for RepeatModifyCommandWindow {
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                 let duration_area =
                     TextEdit::singleline(&mut data.text_edit_text).desired_width(150.0);
-
                 ui.add_space(35.0);
-                duration_area.ui(ui);
+                let id = duration_area.ui(ui).id;
+                ui.memory().request_focus(id);
                 ui.add_space(15.0);
                 ui.label("times (0 to repeat forever)");
                 ui.add_space(35.0);

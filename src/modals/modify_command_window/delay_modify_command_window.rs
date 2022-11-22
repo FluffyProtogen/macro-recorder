@@ -90,7 +90,8 @@ impl ModalWindow for DelayModifyCommandWindow {
                     TextEdit::singleline(&mut data.text_edit_text).desired_width(150.0);
 
                 ui.add_space(35.0);
-                duration_area.ui(ui);
+                let id = duration_area.ui(ui).id;
+                ui.memory().request_focus(id);
                 ui.add_space(15.0);
                 ui.label("milliseconds");
                 ui.add_space(35.0);

@@ -87,7 +87,8 @@ impl Recorder {
                     if ui.button("Wait").clicked()
                         || (ui.input().key_pressed(Key::Num3) && !self.are_any_modals_open())
                     {
-                        self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::Wait)));
+                        self.modal =
+                            Some(Rc::new(ActionListWindow::new(ActionListCategory::Wait, 3)));
                     }
 
                     ui.allocate_space(vec2(0.0, 30.0));
@@ -95,7 +96,8 @@ impl Recorder {
                     if ui.button("If").clicked()
                         || (ui.input().key_pressed(Key::Num4) && !self.are_any_modals_open())
                     {
-                        self.modal = Some(Rc::new(ActionListWindow::new(ActionListCategory::If)));
+                        self.modal =
+                            Some(Rc::new(ActionListWindow::new(ActionListCategory::If, 4)));
                     }
 
                     ui.allocate_space(vec2(0.0, 30.0));
@@ -103,8 +105,10 @@ impl Recorder {
                     if ui.button(RichText::new("Repeat").size(19.5)).clicked()
                         || (ui.input().key_pressed(Key::Num5) && !self.are_any_modals_open())
                     {
-                        self.modal =
-                            Some(Rc::new(ActionListWindow::new(ActionListCategory::Repeat)));
+                        self.modal = Some(Rc::new(ActionListWindow::new(
+                            ActionListCategory::Repeat,
+                            5,
+                        )));
                     }
                 });
             });
