@@ -82,6 +82,7 @@ impl ModalWindow for KeyboardModifyCommandWindow {
             } else {
                 data.enter_lock = false;
             }
+
             if ui.input().key_pressed(Key::Escape) {
                 self.cancel(data, recorder);
             }
@@ -150,11 +151,11 @@ impl ModalWindow for KeyboardModifyCommandWindow {
             ui.allocate_space(Vec2::new(0.0, 25.0));
 
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                let selected_row = recorder.selected_row.unwrap();
                 ui.add_space(35.0);
                 if ui.button("Cancel").clicked() {
                     recorder.modal = None;
                     if data.creating_command {
+                        let selected_row = recorder.selected_row.unwrap();
                         recorder.action_list().remove(selected_row);
                         recorder.selected_row = None;
                     }

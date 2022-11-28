@@ -289,7 +289,7 @@ pub fn find_image(
     image: &RawScreenshotPair,
     search_coordinates: Option<(Pos2, Pos2)>,
 ) -> (f32, (i32, i32)) {
-    let search_coordinates = search_coordinates.unwrap_or({
+    let search_coordinates = search_coordinates.unwrap_or_else(|| {
         let (width, height) = unsafe {
             (
                 GetSystemMetrics(SM_CXVIRTUALSCREEN),
@@ -363,7 +363,7 @@ pub fn fast_find_image(
     image: &RawScreenshotPair,
     search_coordinates: Option<(Pos2, Pos2)>,
 ) -> (f32, (i32, i32)) {
-    let search_coordinates = search_coordinates.unwrap_or({
+    let search_coordinates = search_coordinates.unwrap_or_else(|| {
         let (width, height) = unsafe {
             (
                 GetSystemMetrics(SM_CXVIRTUALSCREEN),
