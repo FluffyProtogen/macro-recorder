@@ -1,40 +1,44 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, path::PathBuf};
 
 use crate::{actions::Action, gui::Recorder, modals::ModalWindow};
 use eframe::egui::*;
 
-pub struct DelayModifyCommandWindow {
-    data: RefCell<DelayModifyCommandWindowData>,
+pub struct PlayModifyCommandWindow {
+    data: RefCell<PlayModifyCommandWindowData>,
 }
 
-struct DelayModifyCommandWindowData {
+struct PlayModifyCommandWindowData {
     creating_command: bool,
     position: Option<Pos2>,
-    text_edit_text: String,
+    path: Option<PathBuf>,
     enter_lock: bool,
 }
 
-impl DelayModifyCommandWindow {
-    pub fn new(creating_command: bool, position: Pos2, delay: u32) -> Self {
+impl PlayModifyCommandWindow {
+    pub fn new(creating_command: bool, position: Pos2, path: &PathBuf) -> Self {
         Self {
-            data: RefCell::new(DelayModifyCommandWindowData {
+            data: RefCell::new(PlayModifyCommandWindowData {
                 creating_command,
                 position: Some(position),
-                text_edit_text: delay.to_string(),
+                path: if creating_command {
+                    None
+                } else {
+                    Some(path.clone())
+                },
                 enter_lock: true,
             }),
         }
     }
 
     fn setup(&self, drag_bounds: Rect) -> Window {
-        let mut window = Window::new("Delay")
+        let mut window = Window::new("Play")
             .collapsible(false)
             .resizable(false)
             .drag_bounds(drag_bounds);
 
         let mut data = self.data.borrow_mut();
 
-        if let Some(position) = &data.position {
+        if let Some(position) = data.position {
             window = window.current_pos(Pos2::new(position.x, position.y));
             data.position = None;
         }
@@ -42,15 +46,15 @@ impl DelayModifyCommandWindow {
         window
     }
 
-    fn save(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
+    fn save(&self, data: &mut PlayModifyCommandWindowData, recorder: &mut Recorder) {
         let selected_row = recorder.selected_row.unwrap();
-        if let Ok(delay) = data.text_edit_text.parse() {
+        if let Some(path) = data.path.take() {
             recorder.modal = None;
-            recorder.action_list()[selected_row] = Action::Delay(delay);
+            recorder.action_list()[selected_row] = Action::Play(path);
         }
     }
 
-    fn cancel(&self, data: &DelayModifyCommandWindowData, recorder: &mut Recorder) {
+    fn cancel(&self, data: &PlayModifyCommandWindowData, recorder: &mut Recorder) {
         let selected_row = recorder.selected_row.unwrap();
         recorder.modal = None;
         if data.creating_command {
@@ -60,7 +64,7 @@ impl DelayModifyCommandWindow {
     }
 }
 
-impl ModalWindow for DelayModifyCommandWindow {
+impl ModalWindow for PlayModifyCommandWindow {
     fn update(
         &self,
         recorder: &mut Recorder,
@@ -85,21 +89,34 @@ impl ModalWindow for DelayModifyCommandWindow {
                 self.cancel(data, recorder);
             }
 
-            ui.allocate_space(Vec2::new(0.0, 25.0));
+            ui.allocate_space(Vec2::new(0.0, 15.0));
 
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                let duration_area =
-                    TextEdit::singleline(&mut data.text_edit_text).desired_width(150.0);
-
-                ui.add_space(35.0);
-                let id = duration_area.ui(ui).id;
-                ui.memory().request_focus(id);
                 ui.add_space(15.0);
-                ui.label("milliseconds");
+                ui.label(
+                    data.path
+                        .as_ref()
+                        .map_or("None".into(), |path| path.to_string_lossy().to_string()),
+                );
+            });
+
+            ui.allocate_space(Vec2::new(0.0, 15.0));
+
+            ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                ui.add_space(35.0);
+                if ui.button("Select Macro").clicked() {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("fluffy macro", &["floof"])
+                        .add_filter("All files", &["*"])
+                        .pick_file()
+                    {
+                        data.path = Some(path);
+                    }
+                }
                 ui.add_space(35.0);
             });
 
-            ui.allocate_space(Vec2::new(0.0, 25.0));
+            ui.add_space(15.0);
 
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                 ui.add_space(35.0);

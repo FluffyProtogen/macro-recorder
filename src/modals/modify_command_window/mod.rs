@@ -3,6 +3,7 @@ pub mod image_modify_command_window;
 pub mod keyboard_command_window;
 pub mod mouse_modify_command_window;
 pub mod pixel_modify_command_window;
+pub mod play_modify_command_window;
 pub mod repeat_modify_command_window;
 
 use std::rc::Rc;
@@ -16,6 +17,7 @@ use self::image_modify_command_window::{ImageModifyCommandWindow, ImageWindowTyp
 use self::keyboard_command_window::KeyboardModifyCommandWindow;
 use self::mouse_modify_command_window::MouseModifyCommandWindow;
 use self::pixel_modify_command_window::{PixelModifyCommandWindow, PixelWindowType};
+use self::play_modify_command_window::PlayModifyCommandWindow;
 use self::repeat_modify_command_window::RepeatModifyCommandWindow;
 
 impl Action {
@@ -56,25 +58,27 @@ impl Action {
                 ctx,
                 ImageWindowType::If,
             ))),
-
             Self::IfPixel(pixel_info) => Some(Rc::new(PixelModifyCommandWindow::new(
                 pixel_info,
                 creating_command,
                 position,
                 PixelWindowType::If,
             ))),
-
             Self::WaitForPixel(pixel_info) => Some(Rc::new(PixelModifyCommandWindow::new(
                 pixel_info,
                 creating_command,
                 position,
                 PixelWindowType::Wait,
             ))),
-
             Self::Repeat(times) => Some(Rc::new(RepeatModifyCommandWindow::new(
                 creating_command,
                 position,
                 *times,
+            ))),
+            Self::Play(path) => Some(Rc::new(PlayModifyCommandWindow::new(
+                creating_command,
+                position,
+                path,
             ))),
 
             Self::Else | Self::EndIf | Self::EndRepeat | Self::Break => None,

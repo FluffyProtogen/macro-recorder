@@ -10,6 +10,7 @@ use macro_recorder::*;
     IF KEY PRESSED
     ADD FOREVER LOOP, ADD REPEAT, ADD END LOOP, ADD BREAK
     ADD CONSUME HOTKEY PRESSES (ONLY WORKS FOR SINGLE PRESS HOTKEYS OR CTRL / ALT)
+    MAKE IT SO THAT IF YOU CLICK ON THE DROP DOWN FOR THE KEYS YOU CAN PRESS A KEY AND IT WILL AUTOMATICALLY SELECT IT
 */
 
 fn main() {
@@ -20,6 +21,6 @@ fn main() {
     run_native(
         "Fluffy Macro Recorder",
         options,
-        Box::new(|cc| Box::new(gui::Recorder::new(cc, vec![]))),
+        Box::new(|cc| Box::new(gui::Recorder::new(cc))),
     );
 }

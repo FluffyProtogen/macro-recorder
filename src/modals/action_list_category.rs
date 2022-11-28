@@ -10,6 +10,7 @@ pub enum ActionListCategory {
     Wait,
     If,
     Repeat,
+    Other,
 }
 
 #[derive(Clone, Copy, Debug, EnumIter)]
@@ -24,6 +25,7 @@ enum SubCategory {
     Repeat,
     EndRepeat,
     Break,
+    Play,
 }
 
 impl ActionListCategory {
@@ -33,6 +35,7 @@ impl ActionListCategory {
             ActionListCategory::Wait => &[Delay, WaitForImage, WaitForPixel],
             ActionListCategory::If => &[IfImage, IfPixel, Else, EndIf],
             ActionListCategory::Repeat => &[Repeat, EndRepeat, Break],
+            ActionListCategory::Other => &[Play],
         }
     }
 }
@@ -51,6 +54,7 @@ impl SubCategory {
             Repeat => Action::Repeat(0),
             EndRepeat => Action::EndRepeat,
             Break => Action::Break,
+            Play => Action::Play(Default::default()),
         }
     }
 }
@@ -69,6 +73,7 @@ impl ToString for SubCategory {
             Repeat => "Repeat".into(),
             EndRepeat => "End Repeat".into(),
             Break => "Break".into(),
+            Play => "Play".into(),
         }
     }
 }

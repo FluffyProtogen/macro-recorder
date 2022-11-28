@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use std::{path::*, rc::Rc, sync::mpsc::Sender};
 
 pub static PIXELS_PER_POINT: OnceCell<f32> = OnceCell::new();
-pub const ROW_LABEL_X_OFFSET: f32 = 97.0;
+pub const ROW_LABEL_X_OFFSET: f32 = 85.0;
 
 pub mod app;
 pub mod side_panel;
@@ -23,7 +23,8 @@ use crate::{
 
 pub struct Recorder {
     pub selected_row: Option<usize>,
-    pub action_list: Vec<Action>,
+    action_list: Vec<Action>,
+    indent_list: Vec<i32>,
     pub right_click_dialog: Option<Rc<ActionRightClickDialog>>,
     pub next_play_record_action: Option<RecordPlayAction>,
     pub settings: Settings,
@@ -33,6 +34,12 @@ pub struct Recorder {
     pub modal: Option<Rc<dyn ModalWindow>>,
     pub moving_row: bool,
     pub hotkey_detector_sender: Option<Sender<()>>,
+}
+
+impl Recorder {
+    pub fn action_list(&mut self) -> &mut Vec<Action> {
+        &mut self.action_list
+    }
 }
 
 const TOP_PANEL_HEIGHT: f32 = 65.0;
@@ -46,7 +53,7 @@ pub enum RecordPlayAction {
 }
 
 impl Recorder {
-    pub fn new(cc: &CreationContext, action_list: Vec<Action>) -> Self {
+    pub fn new(cc: &CreationContext) -> Self {
         use crate::gui::FontFamily::*;
         use crate::gui::TextStyle::*;
         cc.egui_ctx.set_visuals(Visuals::light());
@@ -112,7 +119,8 @@ impl Recorder {
 
         Self {
             selected_row: None,
-            action_list,
+            action_list: vec![],
+            indent_list: vec![],
             right_click_dialog: None,
             next_play_record_action: None,
             settings: settings.unwrap_or(Default::default()),
@@ -146,6 +154,7 @@ impl Recorder {
             self.action_list.push(action);
             self.selected_row = Some(self.action_list.len() - 1);
         }
+        self.regenerate_indents();
     }
 
     fn dividing_lines(ui: &mut Ui, screen_dimensions: Vec2) {
@@ -178,11 +187,21 @@ impl Recorder {
         for (count, info) in info.iter().enumerate() {
             let step = (screen_dimensions.x - SIDE_PANEL_WIDTH) / 3.0;
 
+            let indent = if count == 0 {
+                if self.indent_list.len() > 0 {
+                    self.indent_list[row] * 17
+                } else {
+                    0
+                }
+            } else {
+                0
+            } as f32;
+
             Area::new(format!("area{}{}", count, row))
                 .interactable(false)
                 .order(Order::Background)
                 .fixed_pos(pos2(
-                    ROW_LABEL_X_OFFSET + count as f32 * step,
+                    ROW_LABEL_X_OFFSET + count as f32 * step + indent,
                     start_pos + spacing * ((row - row_range.start) as f32 + 1.0),
                 ))
                 .show(ctx, |ui| {
@@ -286,6 +305,7 @@ impl Recorder {
                         }
                     }
                 }
+                self.regenerate_indents();
             }
 
             self.add_row_label(
@@ -319,6 +339,7 @@ impl Recorder {
                 }
 
                 self.right_click_dialog = None;
+                self.regenerate_indents();
             }
         }
 
@@ -445,6 +466,19 @@ impl Recorder {
                 .show(ctx, |ui| {
                     Label::new(info).wrap(false).ui(ui);
                 });
+        }
+    }
+
+    fn regenerate_indents(&mut self) {
+        let mut indent_count = 0;
+        self.indent_list = vec![0; self.action_list.len()];
+        for (action, indent) in self.action_list.iter().zip(self.indent_list.iter_mut()) {
+            *indent = indent_count;
+            match *action {
+                Action::IfImage(..) | Action::IfPixel(..) | Action::Repeat(..) => indent_count += 1,
+                Action::EndIf | Action::EndRepeat => indent_count -= 1,
+                _ => {}
+            }
         }
     }
 }

@@ -495,7 +495,8 @@ impl PixelModifyCommandWindow {
                     move_mouse_if_found: data.move_mouse_if_found,
                 };
 
-                recorder.action_list[recorder.selected_row.unwrap()] = match data.window_type {
+                let selected_row = recorder.selected_row.unwrap();
+                recorder.action_list()[selected_row] = match data.window_type {
                     PixelWindowType::If => Action::IfPixel(pixel_info),
                     PixelWindowType::Wait => Action::WaitForPixel(pixel_info),
                 };
@@ -504,9 +505,10 @@ impl PixelModifyCommandWindow {
     }
 
     fn cancel(&self, data: &PixelModifyCommandWindowData, recorder: &mut Recorder) {
+        let selected_row = recorder.selected_row.unwrap();
         recorder.modal = None;
         if data.creating_command {
-            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.action_list().remove(selected_row);
             recorder.selected_row = None;
         }
     }

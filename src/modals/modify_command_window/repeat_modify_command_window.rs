@@ -45,14 +45,16 @@ impl RepeatModifyCommandWindow {
     fn save(&self, data: &RepeatModifyCommandWindowData, recorder: &mut Recorder) {
         if let Ok(times) = data.text_edit_text.parse() {
             recorder.modal = None;
-            recorder.action_list[recorder.selected_row.unwrap()] = Action::Repeat(times);
+            let selected_row = recorder.selected_row.unwrap();
+            recorder.action_list()[selected_row] = Action::Repeat(times);
         }
     }
 
     fn cancel(&self, data: &RepeatModifyCommandWindowData, recorder: &mut Recorder) {
         recorder.modal = None;
         if data.creating_command {
-            recorder.action_list.remove(recorder.selected_row.unwrap());
+            let selected_row = recorder.selected_row.unwrap();
+            recorder.action_list().remove(selected_row);
             recorder.selected_row = None;
         }
     }

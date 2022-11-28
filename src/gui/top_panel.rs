@@ -107,6 +107,7 @@ impl Recorder {
                                 Ok(result) => {
                                     self.current_macro_path = Some(path);
                                     self.action_list = result;
+                                    self.regenerate_indents();
                                     self.update_title(frame);
                                 }
                                 Err(error) => {

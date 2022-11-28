@@ -313,6 +313,17 @@ fn play(
 
                     return Some(index);
                 }
+                Action::Play(path) => {
+                    let action_list = load_from_file(path).expect("amogus");
+                    play_back_actions(
+                        &action_list,
+                        &Settings {
+                            repeat_times: 1,
+                            hotkeys: vec![],
+                            ..*settings
+                        },
+                    );
+                }
             }
         }
 

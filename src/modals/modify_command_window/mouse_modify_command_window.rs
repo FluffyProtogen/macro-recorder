@@ -338,6 +338,7 @@ impl ModalWindow for MouseModifyCommandWindow {
 
 impl MouseModifyCommandWindow {
     fn save(&self, data: &MouseModifyCommandWindowData, recorder: &mut Recorder) {
+        let selected_row = recorder.selected_row.unwrap();
         match data.combo_box_type {
             MouseComboBoxType::Wheel => {
                 if let Ok(mut scroll) = data.scroll_text_edit_text.parse() {
@@ -349,7 +350,7 @@ impl MouseModifyCommandWindow {
                             data.mouse_position_text_edit_text.1.parse(),
                         ) {
                             recorder.modal = None;
-                            recorder.action_list[recorder.selected_row.unwrap()] =
+                            recorder.action_list()[selected_row] =
                                 Action::Mouse(MouseActionKind::Wheel(
                                     scroll,
                                     Some(if data.offset_mouse {
@@ -361,7 +362,7 @@ impl MouseModifyCommandWindow {
                         }
                     } else {
                         recorder.modal = None;
-                        recorder.action_list[recorder.selected_row.unwrap()] =
+                        recorder.action_list()[selected_row] =
                             Action::Mouse(MouseActionKind::Wheel(scroll, None));
                     }
                 }
@@ -372,7 +373,7 @@ impl MouseModifyCommandWindow {
                     data.mouse_position_text_edit_text.1.parse(),
                 ) {
                     recorder.modal = None;
-                    recorder.action_list[recorder.selected_row.unwrap()] =
+                    recorder.action_list()[selected_row] =
                         Action::Mouse(MouseActionKind::Moved(if data.offset_mouse {
                             MousePointKind::By(Point { x, y })
                         } else {
@@ -413,7 +414,7 @@ impl MouseModifyCommandWindow {
                         data.mouse_position_text_edit_text.1.parse(),
                     ) {
                         recorder.modal = None;
-                        recorder.action_list[recorder.selected_row.unwrap()] =
+                        recorder.action_list()[selected_row] =
                             Action::Mouse(MouseActionKind::Button(MouseActionButton {
                                 point: Some(if data.offset_mouse {
                                     MousePointKind::By(Point { x, y })
@@ -426,7 +427,7 @@ impl MouseModifyCommandWindow {
                     }
                 } else {
                     recorder.modal = None;
-                    recorder.action_list[recorder.selected_row.unwrap()] =
+                    recorder.action_list()[selected_row] =
                         Action::Mouse(MouseActionKind::Button(MouseActionButton {
                             point: None,
                             button,
@@ -438,9 +439,10 @@ impl MouseModifyCommandWindow {
     }
 
     fn cancel(&self, data: &MouseModifyCommandWindowData, recorder: &mut Recorder) {
+        let selected_row = recorder.selected_row.unwrap();
         recorder.modal = None;
         if data.creating_command {
-            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.action_list().remove(selected_row);
             recorder.selected_row = None;
         }
     }

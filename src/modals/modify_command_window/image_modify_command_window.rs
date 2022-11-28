@@ -154,8 +154,9 @@ impl ImageModifyCommandWindow {
                 image_similarity,
             };
 
+            let selected_row = recorder.selected_row.unwrap();
             recorder.modal = None;
-            recorder.action_list[recorder.selected_row.unwrap()] = match data.window_type {
+            recorder.action_list()[selected_row] = match data.window_type {
                 ImageWindowType::Wait => Action::WaitForImage(image_info),
                 ImageWindowType::If => Action::IfImage(image_info),
             };
@@ -163,9 +164,10 @@ impl ImageModifyCommandWindow {
     }
 
     fn cancel(&self, data: &ImageModifyCommandWindowData, recorder: &mut Recorder) {
+        let selected_row = recorder.selected_row.unwrap();
         recorder.modal = None;
         if data.creating_command {
-            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.action_list().remove(selected_row);
             recorder.selected_row = None;
         }
     }

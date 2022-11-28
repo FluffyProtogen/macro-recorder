@@ -102,13 +102,22 @@ impl Recorder {
 
                     ui.allocate_space(vec2(0.0, 30.0));
 
-                    if ui.button(RichText::new("Repeat").size(19.5)).clicked()
+                    if ui.button(RichText::new("Repeat").size(19.0)).clicked()
                         || (ui.input().key_pressed(Key::Num5) && !self.are_any_modals_open())
                     {
                         self.modal = Some(Rc::new(ActionListWindow::new(
                             ActionListCategory::Repeat,
                             5,
                         )));
+                    }
+
+                    ui.allocate_space(vec2(0.0, 30.0));
+
+                    if ui.button("Other").clicked()
+                        || (ui.input().key_pressed(Key::Num6) && !self.are_any_modals_open())
+                    {
+                        self.modal =
+                            Some(Rc::new(ActionListWindow::new(ActionListCategory::Other, 6)));
                     }
                 });
             });

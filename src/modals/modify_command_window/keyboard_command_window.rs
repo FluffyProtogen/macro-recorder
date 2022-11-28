@@ -52,9 +52,10 @@ impl KeyboardModifyCommandWindow {
     }
 
     fn cancel(&self, data: &KeyboardModifyCommandWindowData, recorder: &mut Recorder) {
+        let selected_row = recorder.selected_row.unwrap();
         recorder.modal = None;
         if data.creating_command {
-            recorder.action_list.remove(recorder.selected_row.unwrap());
+            recorder.action_list().remove(selected_row);
             recorder.selected_row = None;
         }
     }
@@ -149,11 +150,12 @@ impl ModalWindow for KeyboardModifyCommandWindow {
             ui.allocate_space(Vec2::new(0.0, 25.0));
 
             ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                let selected_row = recorder.selected_row.unwrap();
                 ui.add_space(35.0);
                 if ui.button("Cancel").clicked() {
                     recorder.modal = None;
                     if data.creating_command {
-                        recorder.action_list.remove(recorder.selected_row.unwrap());
+                        recorder.action_list().remove(selected_row);
                         recorder.selected_row = None;
                     }
                 }
@@ -168,10 +170,10 @@ impl ModalWindow for KeyboardModifyCommandWindow {
 
 impl KeyboardModifyCommandWindow {
     fn save(&self, data: &KeyboardModifyCommandWindowData, recorder: &mut Recorder) {
+        let selected_row = recorder.selected_row.unwrap();
         if let Some(key_code) = data.key_code {
             recorder.modal = None;
-            recorder.action_list[recorder.selected_row.unwrap()] =
-                Action::Keyboard(key_code, data.key_state);
+            recorder.action_list()[selected_row] = Action::Keyboard(key_code, data.key_state);
         }
     }
 }

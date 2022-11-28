@@ -26,6 +26,8 @@ impl ActionRightClickDialog {
             .resizable(false);
 
         window.show(ctx, |ui| {
+            let selected_row = recorder.selected_row.unwrap();
+
             ui.allocate_space(vec2(0.0, 5.0));
             let button = Button::new("Edit").fill(Color32::from_rgba_premultiplied(0, 0, 0, 0));
             let edit_response = button.ui(ui);
@@ -44,13 +46,16 @@ impl ActionRightClickDialog {
             let move_response = button.ui(ui);
 
             if edit_response.clicked() {
-                recorder.modal = recorder.action_list[recorder.selected_row.unwrap()]
-                    .get_modify_command_window(false, self.position, ctx);
+                recorder.modal = recorder.action_list()[selected_row].get_modify_command_window(
+                    false,
+                    self.position,
+                    ctx,
+                );
                 recorder.right_click_dialog = None;
             }
 
             if delete_response.clicked() {
-                recorder.action_list.remove(recorder.selected_row.unwrap());
+                recorder.action_list().remove(selected_row);
                 recorder.right_click_dialog = None;
                 recorder.selected_row = None;
             }

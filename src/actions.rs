@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, path::PathBuf};
 
 use egui::Color32;
 use serde::*;
@@ -67,6 +67,7 @@ pub enum Action {
     Repeat(usize),
     EndRepeat,
     Break,
+    Play(PathBuf),
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Debug)]
@@ -222,6 +223,7 @@ impl Action {
             ],
             Self::EndRepeat => ["End Repeat".into(), "".into(), "".into()],
             Self::Break => ["Break".into(), "".into(), "".into()],
+            Self::Play(path) => ["Play".into(), path.to_string_lossy().into(), "".into()],
         }
     }
 }
