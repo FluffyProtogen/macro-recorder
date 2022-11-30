@@ -368,7 +368,6 @@ fn execute_if_image(image: &ImageInfo) -> bool {
         }
     } else {
         if similarity >= image.image_similarity {
-            println!("{similarity}");
             if image.move_mouse_if_found {
                 unsafe { SetCursorPos(x, y) };
             }

@@ -478,7 +478,7 @@ impl ImageModifyCommandWindow {
                         .desired_width(50.0)
                         .ui(ui);
                     ui.allocate_space(vec2(5.0, 0.0));
-                    ui.label("Similarity (1 means identical; 0.97 recommended)");
+                    ui.label("Similarity (1 means identical)");
                 });
 
                 ui.allocate_space(vec2(0.0, 15.0));

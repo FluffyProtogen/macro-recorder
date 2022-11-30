@@ -373,9 +373,59 @@ pub fn fast_find_image(
         (pos2(0.0, 0.0), pos2(width as f32, height as f32))
     });
 
-    let screenshot = screenshot_raw(search_coordinates.0, search_coordinates.1);
+    let screenshot = screenshot_raw(search_coordinates.0, search_coordinates.1)
+        .par_chunks(4)
+        .map(|chunk| [chunk[0], chunk[1], chunk[2], chunk[3]])
+        .collect::<Vec<_>>();
 
-    todo!() // USE WINDOWS OF THE SCREENSHOT AND WINDOWS ARE SIZED THE LENGTH OF THE TEMPLATE width * 4
+    let width = (search_coordinates.0.x - search_coordinates.1.x).abs() as usize;
+    let height = (search_coordinates.0.y - search_coordinates.1.y).abs() as usize;
+
+    let template = &image.color;
+
+    for _x in 0..=(width - template.width) {
+        for _y in 0..=(height - template.height) {
+            let mut found = true;
+            'lose: {
+                for x in 0..template.width {
+                    for y in 0..template.height {
+                        if screenshot[(_y + y) * width + _x + x]
+                            != unsafe {
+                                [
+                                    *template.pixels.get_unchecked((y * template.width + x) * 4),
+                                    *template
+                                        .pixels
+                                        .get_unchecked((y * template.width + x) * 4 + 1),
+                                    *template
+                                        .pixels
+                                        .get_unchecked((y * template.width + x) * 4 + 2),
+                                    *template
+                                        .pixels
+                                        .get_unchecked((y * template.width + x) * 4 + 3),
+                                ]
+                            }
+                        {
+                            found = false;
+                            break 'lose;
+                        }
+                    }
+                }
+            }
+            if found {
+                return (
+                    1.0,
+                    (
+                        (_x + template.width / 2) as i32
+                            + lesser(search_coordinates.0.x, search_coordinates.1.x) as i32,
+                        (_y + template.height / 2) as i32
+                            + lesser(search_coordinates.0.y, search_coordinates.1.y) as i32,
+                    ),
+                );
+            }
+        }
+    }
+
+    (0.0, (0, 0))
 }
 
 pub fn get_color_under_mouse() -> Color32 {

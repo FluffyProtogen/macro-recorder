@@ -104,7 +104,7 @@ impl Default for ImageInfo {
             check_if_not_found: false,
             search_location_left_top: None,
             search_location_width_height: None,
-            image_similarity: 0.97,
+            image_similarity: 1.0,
         }
     }
 }
